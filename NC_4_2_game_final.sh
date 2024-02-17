@@ -2,8 +2,9 @@
 
 # Author: O.A.
 
-# Usage: ./NC_4_2_game_final.sh
+# Usage: $./NC_4_2_game_final.sh
 
+# Tutorial followed: https://www.youtube.com/watch?v=Fq6gqi9Ubog&list=PLIhvC56v63IKioClkSNDjW7iz-6TFvLwS&index=4
 # Introduces concepts of CONDITIONALS, NESTED CONDITIONALS, CASES
 
 # - CONDITIONALS (aka. "if" statements)
@@ -39,7 +40,7 @@ echo "Welcome! Choose your player personality (1-3):
 # Player properties:
 # player: 	prophet/layman/evil-person 	# used
 # personality: 	joyful/neutral/grumbler 	# unused
-# strength: 	strong/mediocre/weak		# unused
+# strength: 	strong/mediocre/weak		# used
 # health: 	good/so-and-so/weak		# unused
 # divine_help:	always/sometimes/rarely 	# used
 
@@ -65,7 +66,7 @@ case $player_choice in
 	3)
 		player="Evil person"
 		personality="grumbler"
-		strength="mediocre"
+		strength="weak"
 		health="weak"
 		divine_help="rarely"
 		;;
@@ -87,6 +88,7 @@ beast1value=$(( $RANDOM % 2 ))
 # echo "Beast value is $beastvalue." #debug
 
 # divine help START
+# (breaks DRY principle. I'm still learning.)
 case $divine_help in
 	"always")
 		echo "Divine help: Choose $beast1value!"
@@ -116,26 +118,44 @@ esac
 read myvalue
 
 # execute attack
+# "coffee" is a cheat code
 if [[ $myvalue == $beast1value || $myvalue == "coffee" ]]; then
 	echo "You won!"
-elif [[ $USER="bernard" ]]; then
+elif [[ $USER == "bernard" ]]; then
 	echo "Hey, Bernard always wins."
 else
 	echo "You lose!"
 	exit 1
 fi
 
-echo ""
+# if player strength is weak, prompt to attack 1 more time
+# I know this solution isn't elegant! I'm still learning! # breaks DRY principle
+if [[ $strength == "weak" ]]; then
+	echo "You're weak. Hit one more time. (Same number!)"
+	read myvalue
+
+	if [[ $myvalue == $beast1value || $myvalue == "coffee" ]]; then
+		echo "You won!"
+	elif [[ $USER == "bernard" ]]; then
+		echo "Hey, Bernard always wins."
+	else
+		echo "You lose!"
+		exit 1
+	fi
+fi
+
 sleep 1
 
 
 # Second beast battle (1/10 chance)
+echo ""
 echo "Your second beast approaches. Prepare for battle. Pick a number between 0-9! (0-9)"
 
 beast2value=$(( $RANDOM % 10 ))
 # echo "Beast 2 value is $beast2value." #debug
 
 # divine help START
+# (breaks DRY principle. I'm still learning.)
 case $divine_help in
 	"always")
 		echo "Divine help: Choose $beast2value!"
@@ -178,3 +198,20 @@ else
 	exit 1
 fi
 
+# if player strength is weak, prompt to attack 1 more time
+# I know this solution isn't elegant! I'm still learning! # breaks DRY principle
+if [[ $strength == "weak" ]]; then
+	echo "You're weak. Hit one more time. (Same number!)"
+	read myvalue
+	if [[ $myvalue == $beast2value || $myvalue == "coffee" ]]; then
+		if [[ $USER == "air" ]]; then
+			echo "You won!"
+		else
+			echo "You lose! You're not \"air\"."	# not an elegant way to program this loss.
+			exit 1
+		fi
+	else
+		echo "You lose!"
+		exit 1
+	fi
+fi
