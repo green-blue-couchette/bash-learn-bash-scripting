@@ -1,11 +1,15 @@
 #!/bin/bash
 
 # Author: O.A.
-
 # Usage: $./NC_4_2_game_final.sh
 
 # Tutorial followed: https://www.youtube.com/watch?v=Fq6gqi9Ubog&list=PLIhvC56v63IKioClkSNDjW7iz-6TFvLwS&index=4
 # Introduces concepts of CONDITIONALS, NESTED CONDITIONALS, CASES
+
+# UPDATE: Added check for user "bernard" to the 2nd attack round.
+# UPDATE: Replaced DRY-breaking attack reprompt code with while-loops in both battle rounds.
+# UPDATE: Added easy/medium/hard indicators for player choice screen.
+# TODO: Should replace the "divine help" codes with function calls to eliminate breaking DRY principle.
 
 # - CONDITIONALS (aka. "if" statements)
 # if [[ some condition ]]; then
@@ -33,9 +37,9 @@
 # esac
 
 echo "Welcome! Choose your player personality (1-3):
-1 - Prophet
-2 - Layman
-3 - Evil person. PS: Evil people don't get far."
+1 - Prophet	(easy)
+2 - Layman	(medium)
+3 - Evil person (harder) PS: Evil people don't get far."
 
 # Player properties:
 # player: 	prophet/layman/evil-person 	# used
@@ -73,22 +77,24 @@ case $player_choice in
 esac
 
 echo ""
-echo "Your player choices ---
-Player: 	$player,
-personality: 	$personality,
-strength: 	$strength,
-health: 	$health,
-divine help: 	$divine_help"
+echo "Your player choices -----
+Player: 	$player
+personality: 	$personality
+strength: 	$strength
+health: 	$health
+divine help: 	$divine_help
+-------------------------"
+
 
 # First beast battle (50/50 chance)
 echo ""
 echo "Your first beast approaches. Prepare to battle. Pick a number between 0-1! (0/1)"
 
 beast1value=$(( $RANDOM % 2 ))
-# echo "Beast value is $beastvalue." #debug
+# echo "Beast value is $beast1value." #debug
 
 # divine help START
-# (breaks DRY principle. I'm still learning.)
+# (Case block for divine help breaks DRY principle. I'm still learning.)
 case $divine_help in
 	"always")
 		echo "Divine help: Choose $beast1value!"
@@ -115,34 +121,35 @@ case $divine_help in
 esac
 # divine help END
 
-read myvalue
-
-# execute attack
-# "coffee" is a cheat code
-if [[ $myvalue == $beast1value || $myvalue == "coffee" ]]; then
-	echo "You won!"
-elif [[ $USER == "bernard" ]]; then
-	echo "Hey, Bernard always wins."
-else
-	echo "You lose!"
-	exit 1
-fi
-
-# if player strength is weak, prompt to attack 1 more time
-# I know this solution isn't elegant! I'm still learning! # breaks DRY principle
-if [[ $strength == "weak" ]]; then
-	echo "You're weak. Hit one more time. (Same number!)"
+# execute battle 1
+# "coffee" is a cheat code to win the current attack
+# "bernard" is a secret user to win the entire battle at once
+attacks=0 # no. of attacks executed during this battle
+while true
+do
 	read myvalue
 
 	if [[ $myvalue == $beast1value || $myvalue == "coffee" ]]; then
 		echo "You won!"
 	elif [[ $USER == "bernard" ]]; then
-		echo "Hey, Bernard always wins."
+		echo "Hey, Bernard always wins." # Automatically win without strength-dependent reprompt.
+		break
 	else
 		echo "You lose!"
 		exit 1
 	fi
-fi
+
+	(( attacks ++ ))
+	# echo "$attacks attacks so far. (debug)" # debug
+
+	if [[ $strength == "weak" && $attacks < 2 ]]; then # Check if user is weak. If yes, reprompt for a 2nd attack!
+		echo "You're weak; hit one more time. (Same number.)"
+		continue # if battle is incomplete, prompt for a new attack
+	fi
+
+	# When attack is done, quit WHILE-loop
+	break
+done
 
 sleep 1
 
@@ -152,10 +159,10 @@ echo ""
 echo "Your second beast approaches. Prepare for battle. Pick a number between 0-9! (0-9)"
 
 beast2value=$(( $RANDOM % 10 ))
-# echo "Beast 2 value is $beast2value." #debug
+# echo "Beast value is $beast2value." #debug
 
 # divine help START
-# (breaks DRY principle. I'm still learning.)
+# (Case block for divine help breaks DRY principle. I'm still learning.)
 case $divine_help in
 	"always")
 		echo "Divine help: Choose $beast2value!"
@@ -180,38 +187,41 @@ case $divine_help in
 		fi
 		;;
 esac
-# divine help END
+## divine help END
 
-read myvalue
-
-# execute attack
-# "coffee" is a cheat code
-if [[ $myvalue == $beast2value || $myvalue == "coffee" ]]; then
-	if [[ $USER == "air" ]]; then
-		echo "You won!"
-	else
-		echo "You lose! You're not \"air\"."	# not an elegant way to program this loss.
-		exit 1
-	fi
-else
-	echo "You lose!"
-	exit 1
-fi
-
-# if player strength is weak, prompt to attack 1 more time
-# I know this solution isn't elegant! I'm still learning! # breaks DRY principle
-if [[ $strength == "weak" ]]; then
-	echo "You're weak. Hit one more time. (Same number!)"
+# Execute battle 2
+# "coffee" is a cheat code to win the current attack
+# "bernard" is a secret user to win the entire battle at once
+# user loses if player isn't logged in as "air" or "bernard"
+attacks=0 # no. of attacks executed during this battle
+while true
+do
 	read myvalue
-	if [[ $myvalue == $beast2value || $myvalue == "coffee" ]]; then
-		if [[ $USER == "air" ]]; then
+
+	if [[ $USER == "air" ]]; then
+		if [[ $myvalue == $beast2value || $myvalue == "coffee" ]]; then
 			echo "You won!"
 		else
-			echo "You lose! You're not \"air\"."	# not an elegant way to program this loss.
+			echo "You lose!"
 			exit 1
 		fi
+
+		(( attacks ++ ))
+		# echo "$attacks attacks so far. (debug)" # debug
+
+		if [[ $strength == "weak" && $attacks < 2 ]]; then # Check if user is weak. If yes, reprompt for a 2nd attack!
+			echo "You're weak; hit one more time. (Same number.)"
+			continue # if battle is incomplete, prompt for a new attack
+		fi
+
+	elif [[ $USER == "bernard" ]]; then
+		echo "Hey, Bernard always wins." # Automatically win without strength-dependent reprompt.
+		break
 	else
-		echo "You lose!"
+		echo "You lose! You're not \"air\"." # Do not reveal to player that "bernard" is also a possible user. (echo "You're not \"air\" or \"bernard\".")
 		exit 1
 	fi
-fi
+
+	# When attack is done, quit WHILE-loop
+	break
+done
