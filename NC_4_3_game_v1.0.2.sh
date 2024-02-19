@@ -1,15 +1,17 @@
 #!/bin/bash
 
 # Author: O.A.
-# Usage: $./NC_4_2_game_final.sh
+# Usage: $./NC_4_3_game_v1.0.2.sh
 
 # Tutorial followed: https://www.youtube.com/watch?v=Fq6gqi9Ubog&list=PLIhvC56v63IKioClkSNDjW7iz-6TFvLwS&index=4
 # Introduces concepts of CONDITIONALS, NESTED CONDITIONALS, CASES
+# UPDATE (19-02-2024): Also uses FUNCTION CALLS
 
-# UPDATE: Added check for user "bernard" to the 2nd attack round.
-# UPDATE: Replaced DRY-breaking attack reprompt code with while-loops in both battle rounds.
-# UPDATE: Added easy/medium/hard indicators for player choice screen.
-# TODO: Should replace the "divine help" codes with function calls to eliminate breaking DRY principle.
+# UPDATE (19-02-2024): Added check for user "bernard" to the 2nd attack round.
+# UPDATE (19-02-2024): Replaced DRY-breaking attack reprompt code with while-loops in both battle rounds.
+# UPDATE (19-02-2024): Added easy/medium/hard indicators for player choice screen.
+# UPDATE (19-02-2024): Replaced the "divine help" code blocks with function calls to eliminate breaking DRY principle.
+# UPDATE (19-02-2024): change all custom (non-env-variable) multiword variable names to snake_case.
 
 # - CONDITIONALS (aka. "if" statements)
 # if [[ some condition ]]; then
@@ -35,6 +37,36 @@
 #	(do something)
 #	;;
 # esac
+
+#--- Function definitions START
+function divine_help() {
+# expects argument at $1. Should be the beast value.
+	case $divine_help in
+		"always")
+			echo "Divine help: Choose $1!"
+			echo "You're always blessed with divine help!"
+			;;
+
+		"sometimes")
+			# calculate divine help (50% chance)
+			# if yes, echo it.
+			if [[ $(( $RANDOM % 10 )) > 4 ]]; then
+				echo "Divine help: Choose $1!"
+				echo "SOMETIMES you get divine help. You just don't know where it comes from."
+			fi
+			;;
+
+		"rarely")
+			# calculate divine help (10% chance)
+			# if yes, echo it
+			if [[ $(( $RANDOM % 10 )) > 8 ]]; then
+				echo "Divine help: Choose $1!"
+				echo "You RARELY get divine help, but you're so glad when you do."
+			fi
+			;;
+	esac
+}
+#--- Function definitions END
 
 echo "Welcome! Choose your player personality (1-3):
 1 - Prophet	(easy)
@@ -78,11 +110,11 @@ esac
 
 echo ""
 echo "Your player choices -----
-Player: 	$player
-personality: 	$personality
-strength: 	$strength
-health: 	$health
-divine help: 	$divine_help
+Player: 		$player
+personality (unused): 	$personality
+strength: 		$strength
+health (unused): 	$health
+divine help: 		$divine_help
 -------------------------"
 
 
@@ -90,36 +122,11 @@ divine help: 	$divine_help
 echo ""
 echo "Your first beast approaches. Prepare to battle. Pick a number between 0-1! (0/1)"
 
-beast1value=$(( $RANDOM % 2 ))
-# echo "Beast value is $beast1value." #debug
+beast_1_value=$(( $RANDOM % 2 ))
+# echo "Beast value is $beast_1_value." #debug
 
-# divine help START
-# (Case block for divine help breaks DRY principle. I'm still learning.)
-case $divine_help in
-	"always")
-		echo "Divine help: Choose $beast1value!"
-		echo "You're always blessed with divine help!"
-		;;
-
-	"sometimes")
-		# calculate divine help (50% chance)
-		# if yes, echo it.
-		if [[ $(( $RANDOM % 10 )) > 4 ]]; then
-			echo "Divine help: Choose $beast1value!"
-			echo "SOMETIMES you get divine help. You just don't know where it comes from."
-		fi
-		;;
-
-	"rarely")
-		# calculate divine help (10% chance)
-		# if yes, echo it
-		if [[ $(( $RANDOM % 10 )) > 8 ]]; then
-			echo "Divine help: Choose $beast1value!"
-			echo "You RARELY get divine help, but you're so glad when you do."
-		fi
-		;;
-esac
-# divine help END
+# check if player gets divine help for this battle
+divine_help $beast_1_value
 
 # execute battle 1
 # "coffee" is a cheat code to win the current attack
@@ -127,9 +134,9 @@ esac
 attacks=0 # no. of attacks executed during this battle
 while true
 do
-	read myvalue
+	read my_value
 
-	if [[ $myvalue == $beast1value || $myvalue == "coffee" ]]; then
+	if [[ $my_value == $beast_1_value || $my_value == "coffee" ]]; then
 		echo "You won!"
 	elif [[ $USER == "bernard" ]]; then
 		echo "Hey, Bernard always wins." # Automatically win without strength-dependent reprompt.
@@ -147,7 +154,7 @@ do
 		continue # if battle is incomplete, prompt for a new attack
 	fi
 
-	# When attack is done, quit WHILE-loop
+	# When battle is finished, quit WHILE-loop
 	break
 done
 
@@ -158,36 +165,11 @@ sleep 1
 echo ""
 echo "Your second beast approaches. Prepare for battle. Pick a number between 0-9! (0-9)"
 
-beast2value=$(( $RANDOM % 10 ))
-# echo "Beast value is $beast2value." #debug
+beast_2_value=$(( $RANDOM % 10 ))
+# echo "Beast value is $beast_2_value." #debug
 
-# divine help START
-# (Case block for divine help breaks DRY principle. I'm still learning.)
-case $divine_help in
-	"always")
-		echo "Divine help: Choose $beast2value!"
-		echo "You're always blessed with divine help!"
-		;;
-
-	"sometimes")
-		# calculate divine help (50% chance)
-		# if yes, echo it.
-		if [[ $(( $RANDOM % 10 )) > 4 ]]; then
-			echo "Divine help: Choose $beast2value!"
-			echo "SOMETIMES you get divine help. You just don't know where it comes from."
-		fi
-		;;
-
-	"rarely")
-		# calculate divine help (10% chance)
-		# if yes, echo it
-		if [[ $(( $RANDOM % 10 )) > 8 ]]; then
-			echo "Divine help: Choose $beast2value!"
-			echo "You RARELY get divine help, but you're so glad when you do."
-		fi
-		;;
-esac
-## divine help END
+# check if player gets divine help for this battle
+divine_help $beast_2_value
 
 # Execute battle 2
 # "coffee" is a cheat code to win the current attack
@@ -196,10 +178,10 @@ esac
 attacks=0 # no. of attacks executed during this battle
 while true
 do
-	read myvalue
+	read my_value
 
 	if [[ $USER == "air" ]]; then
-		if [[ $myvalue == $beast2value || $myvalue == "coffee" ]]; then
+		if [[ $my_value == $beast_2_value || $my_value == "coffee" ]]; then
 			echo "You won!"
 		else
 			echo "You lose!"
@@ -222,6 +204,6 @@ do
 		exit 1
 	fi
 
-	# When attack is done, quit WHILE-loop
+	# When battle is finished, quit WHILE-loop
 	break
 done
