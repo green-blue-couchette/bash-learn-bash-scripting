@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Author: O.A.
-# Usage: $./NC_4_3_game_v1.0.2.sh
+# Usage: $./NC_4_3_game_v1.0.3.sh
 
 # Tutorial followed: https://www.youtube.com/watch?v=Fq6gqi9Ubog&list=PLIhvC56v63IKioClkSNDjW7iz-6TFvLwS&index=4
 # Introduces concepts of CONDITIONALS, NESTED CONDITIONALS, CASES
@@ -11,7 +11,8 @@
 # UPDATE (19-02-2024): Replaced DRY-breaking attack reprompt code with while-loops in both battle rounds.
 # UPDATE (19-02-2024): Added easy/medium/hard indicators for player choice screen.
 # UPDATE (19-02-2024): Replaced the "divine help" code blocks with function calls to eliminate breaking DRY principle.
-# UPDATE (19-02-2024): change all custom (non-env-variable) multiword variable names to snake_case.
+# UPDATE (19-02-2024): Change all custom (non-env-variable) multiword variable names to snake_case.
+# UPDATE (20-02-2024): Moved the battle code inside a function. Also refactored that code to conditionally require user to be logged in as "root".
 
 # - CONDITIONALS (aka. "if" statements)
 # if [[ some condition ]]; then
@@ -39,6 +40,8 @@
 # esac
 
 #--- Function definitions START
+# expects $1 (a number)
+
 function divine_help() {
 # expects argument at $1. Should be the beast value.
 	case $divine_help in
@@ -65,6 +68,49 @@ function divine_help() {
 			fi
 			;;
 	esac
+}
+
+function battle() {
+# expects $1 beast_value	(a number)
+# expects $2 root_required	("root_required" or anything else, e.g. "root_not_required")
+# expects $3 player_strength	(the strength string set at the start of the game)
+beast_value=$1
+root_required=$2
+player_strength=$3
+
+# "coffee" is a secret code for winning an attack
+attacks=0
+while true
+do
+	read my_value
+
+	if [[ $USER == "bernard" ]]; then
+	        echo "Hey, Bernard always wins." # Automatically win without strength-dependent reprompt.
+	        break
+
+	elif [[ $root_required != "root_required" || $USER == "root" ]]; then
+	        if [[ $my_value == $beast_value || $my_value == "coffee" ]]; then
+	                echo "You won!"
+	        else
+	                echo "You lose!"
+	                exit 1
+	        fi
+
+	        (( attacks ++ ))
+	        # echo "$attacks attacks so far. (debug)" # debug
+
+	        if [[ $player_strength == "weak" && $attacks < 2 ]]; then # Check if user is weak. If yes, repro>
+	                echo "You're weak; hit one more time. (Same number.)"
+	                continue # if battle is incomplete, prompt for a new attack
+	        fi
+	else
+	        echo "You lose! You're not \"root\"." # Don't reveal to player that "bernard" is the secret all-winning user.
+	        exit 1
+	fi
+
+	# When battle is finished, quit while-loop
+	break
+done
 }
 #--- Function definitions END
 
@@ -131,32 +177,7 @@ divine_help $beast_1_value
 # execute battle 1
 # "coffee" is a cheat code to win the current attack
 # "bernard" is a secret user to win the entire battle at once
-attacks=0 # no. of attacks executed during this battle
-while true
-do
-	read my_value
-
-	if [[ $my_value == $beast_1_value || $my_value == "coffee" ]]; then
-		echo "You won!"
-	elif [[ $USER == "bernard" ]]; then
-		echo "Hey, Bernard always wins." # Automatically win without strength-dependent reprompt.
-		break
-	else
-		echo "You lose!"
-		exit 1
-	fi
-
-	(( attacks ++ ))
-	# echo "$attacks attacks so far. (debug)" # debug
-
-	if [[ $strength == "weak" && $attacks < 2 ]]; then # Check if user is weak. If yes, reprompt for a 2nd attack!
-		echo "You're weak; hit one more time. (Same number.)"
-		continue # if battle is incomplete, prompt for a new attack
-	fi
-
-	# When battle is finished, quit WHILE-loop
-	break
-done
+battle $beast_1_value "root_not_required" $strength
 
 sleep 1
 
@@ -174,36 +195,5 @@ divine_help $beast_2_value
 # Execute battle 2
 # "coffee" is a cheat code to win the current attack
 # "bernard" is a secret user to win the entire battle at once
-# user loses if player isn't logged in as "air" or "bernard"
-attacks=0 # no. of attacks executed during this battle
-while true
-do
-	read my_value
-
-	if [[ $USER == "air" ]]; then
-		if [[ $my_value == $beast_2_value || $my_value == "coffee" ]]; then
-			echo "You won!"
-		else
-			echo "You lose!"
-			exit 1
-		fi
-
-		(( attacks ++ ))
-		# echo "$attacks attacks so far. (debug)" # debug
-
-		if [[ $strength == "weak" && $attacks < 2 ]]; then # Check if user is weak. If yes, reprompt for a 2nd attack!
-			echo "You're weak; hit one more time. (Same number.)"
-			continue # if battle is incomplete, prompt for a new attack
-		fi
-
-	elif [[ $USER == "bernard" ]]; then
-		echo "Hey, Bernard always wins." # Automatically win without strength-dependent reprompt.
-		break
-	else
-		echo "You lose! You're not \"air\"." # Do not reveal to player that "bernard" is also a possible user. (echo "You're not \"air\" or \"bernard\".")
-		exit 1
-	fi
-
-	# When battle is finished, quit WHILE-loop
-	break
-done
+# user automatically loses if player isn't logged in as "root" or "bernard"
+battle $beast_2_value "root_required" $strength
