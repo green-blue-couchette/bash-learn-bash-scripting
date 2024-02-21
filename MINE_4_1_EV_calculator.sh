@@ -187,7 +187,7 @@ elif [[ $menu_choice == 2 ]]; then
 	# Do calculations
 	# Print results
 
-	echo "Formula: Shutter speed (s) = Log_base2( 100*Aperture² / ISO * 2^EV )"
+	echo "Formula: Shutter speed (s) = 100 * Aperture² / ISO * 2^EV"
 	echo ""
 
 	echo "Enter EV:"
@@ -215,7 +215,6 @@ elif [[ $menu_choice == 3 ]]; then # Display EV table and quit
 	do
 		EV_table $EV_value
 	done
-	EV_table "banana"
 else
 	echo "Bad input."
 fi
