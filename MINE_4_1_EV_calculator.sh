@@ -42,7 +42,7 @@
 
 # Function definitions START
 function EV_table(){ # A lookup table. Echoes out the explanation of a given EV value (integers only)
-# expects $1 (an integer)
+# expects $1 (an integer [-7, 20] or a string["title", "source", "table_header"])
 
 case $1 in
 "title")
@@ -51,6 +51,10 @@ case $1 in
 "source")
 	echo "Source: https://www.omnicalculator.com/other/exposure"
 	echo ""
+	;;
+"table_header")
+	echo "EV	Lighting condition"
+	echo "--------------------------"
 	;;
 -7)
 	echo "-7	Deep star field or the Milky Way."
@@ -211,7 +215,7 @@ elif [[ $menu_choice == 2 ]]; then
 	# echo "Calculate time adjusted for reciprocity? (Y/n)"
 
 elif [[ $menu_choice == 3 ]]; then # Display EV table and quit
-	for EV_value in "title" "source" {-7..20};
+	for EV_value in "title" "source" "table_header" {-7..20};
 	do
 		EV_table $EV_value
 	done
