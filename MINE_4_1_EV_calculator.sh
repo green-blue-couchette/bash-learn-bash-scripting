@@ -4,10 +4,19 @@
 # Usage: $./MINE_4_1_EV_calculator.sh
 
 # ABOUT: CALCULATE THE EXPOSURE VALUE (EV) FOR YOUR CAMERA SETTINGS. (Film roll's reciprocity behavior for long exposures also available.)
+
 # FORMULAS:
-# EV = Log_base2(100 * aperture² / ISO * shutter speed )
-# Shutter Speed (s) = Log_base2( 100*Aperture² / ISO * 2^EV )
-# EV formula taken from this web page: https://www.omnicalculator.com/other/exposure
+# * EV = Log_base2(100 * Aperture² / ISO * Shutter Speed )
+#   (EV formula taken from this web page: https://www.omnicalculator.com/other/exposure)
+# * Shutter Speed (s) = 100 * Aperture² / ISO * 2^EV
+
+# Changelog:
+# (2024-02-16): First idea and minimal version implemented.
+# (2024-02-20): Added option to 1) Calculate ISO, Aperture, Shutter time --> EV; 2) Calculate EV, ISO, Aperture --> Shutter time; 3) Display EV table.
+# (2024-02-21): Fixed calculation formulas and implementations for ISO, Aperture, Shutter time --> EV;
+# 		Fixed calculation formulas and implementations for EV, ISO, Aperture --> Shutter time;
+#		Implemented displaying EV table;
+#		General fixes in comments and
 
 # Outline...
 # Ask user what they want to calculate...
@@ -16,8 +25,6 @@
 # 3. Show EV table and quit
 
 # TODO (could): x. Option to show different combinations of aperture/shutter time to get the same EV value?
-
-# TODO (BUGS): Has some "divide by zero" errors when calculating for NEGATIVE EV VALUES. Look into it.
 
 # TODO: For 1, fetch explanation of calculated reciprocity value from a lookup table (case statements?)
 # TODO: For 1, ask if user wants RECIPROCITY FOR THE SHUTTER TIME. (Recommended over 1s exposure.)
@@ -156,6 +163,10 @@ read menu_choice
 echo ""
 
 if [[ $menu_choice == 1 ]]; then
+	# Ask for inputs
+	# Do calculations
+	# Print results
+
 	echo "Formula: EV = Log_base2( 100 * aperture² / ISO * shutter speed )"
 	echo ""
 
@@ -174,7 +185,7 @@ if [[ $menu_choice == 1 ]]; then
 	# shutter_speed=0,01
 	# Gives EV = 11.56, aka EV is 11 or 12
 
-	aperture_squared=$( bc <<< "$aperture^2" )
+	aperture_squared=$( bc -l <<< "$aperture^2" )
 	aperture_over_exposure_time=$( bc -l <<< "scale=4; ((100 * $aperture_squared)/($ISO * $shutter_speed))" ) # the division we will take the logarithm of
 	EV=$(bc -l <<< "l($aperture_over_exposure_time)/l(2)") # calculates the base-2 logarithm
 	echo ""
@@ -203,8 +214,8 @@ elif [[ $menu_choice == 2 ]]; then
 	echo "Enter Aperture (F-STOP):"
 	read aperture
 
-	aperture_squared=$( bc <<< "$aperture^2" ) # Gives reasonably accurate results
-	two_to_power_of_EV=$( bc <<< "2^$EV ")
+	aperture_squared=$( bc -l <<< "$aperture^2" )
+	two_to_power_of_EV=$( bc -l <<< "2^$EV ")
 	exposure_time=$( bc -l <<< "scale=4; ((100 * $aperture_squared)/($ISO * $two_to_power_of_EV))" )
 	echo ""
 	echo "Exposure time = $exposure_time seconds"
@@ -214,7 +225,9 @@ elif [[ $menu_choice == 2 ]]; then
 	# TA = TM^p (fallback formula)
 	# echo "Calculate time adjusted for reciprocity? (Y/n)"
 
-elif [[ $menu_choice == 3 ]]; then # Display EV table and quit
+elif [[ $menu_choice == 3 ]]; then
+	# Display EV table and quit
+
 	for EV_value in "title" "source" "table_header" {-7..20};
 	do
 		EV_table $EV_value
