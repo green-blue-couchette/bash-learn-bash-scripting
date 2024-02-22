@@ -12,23 +12,32 @@
 
 # Changelog:
 # (2024-02-16): First idea and minimal version implemented.
-# (2024-02-20): Added option to 1) Calculate ISO, Aperture, Shutter time --> EV; 2) Calculate EV, ISO, Aperture --> Shutter time; 3) Display EV table.
+# (2024-02-20): Added option to 1) Calculate ISO, Aperture, Shutter time --> EV; 2) Calculate EV, ISO, Aperture --> Shutter time; 5) Display EV table.
 # (2024-02-21): Fixed calculation formulas and implementations for ISO, Aperture, Shutter time --> EV;
 # 		Fixed calculation formulas and implementations for EV, ISO, Aperture --> Shutter time;
 #		Implemented displaying EV table;
 #		General fixes in comments and code.
 #		Added option 4) Display common ISO and Aperture (F-stop) values.
+#		Added option 3) Calculate Reciprocity Railure Compensation
+# (2024-02-22): Implemented option 3) Calculate Reciprocity Failure Compensation
+#		Today I learned...	- How to calculate with non-integer exponents in 'bc' (e.g. $(bc -l <<< "scale=4; e(1.31*l($Tm))" calculates $Tm ^ 1.31)
+#					- How to "return" values from functions (using either return (some int from 0-255) or by using global variables, like r_Tc in this script.)
 
 # Outline...
-# Ask user what they want to calculate...
-# 1. ISO, Aperture, Shutter time --> EV
-# 2. EV, ISO, Aperture --> Shutter time
-# 3. Show EV table and quit
+# Ask user what they want to do...
+# 1. Calculate ISO, Aperture (F-stop), Shutter time --> EV
+# 2. Calculate EV, ISO, Aperture (F-stop) --> Shutter time
+# 3. Calculate Reciprocity Failure Compensation
+# 4. Show common ISO and Aperture (F-stop) values and quit
+# 5. Show EV table and quit
 
+
+# TODO (would be nice): Add disclaimer about me not being liable if user's photos turn out unexpected.
+# TODO (could): Add some error checking for EV values input ( no less than -7. If over 20, default to 20 -- display message "defaulting to EV=20")
 # TODO (could): x. Option to show different combinations of aperture/shutter time to get the same EV value?
 
 # TODO: For 1, fetch explanation of calculated reciprocity value from a lookup table (case statements?)
-# TODO: For 1, ask if user wants RECIPROCITY FOR THE SHUTTER TIME. (Recommended over 1s exposure.)
+# TODO: For 1, ask if user wants RECIPROCITY FOR THE SHUTTER TIME. (Recommended over 1/2s exposure.)
 # TODO: For 2, ask if user wants RECIPROCITY for the shutter time.
 # 	Fetch reciprocity from a lookup table of film rolls (Gold 200, UltraMax 400, Fomapan 400, ILFORD HP5+, Velvia 100) (case statements). Default to grainydays' formula if reciprocity data is unavailable for a film roll.
 #
@@ -45,9 +54,12 @@
 #https://duckduckgo.com/?q=round+off+decimal+in+bash&t=brave&atb=v378-1&ia=web
 #https://askubuntu.com/questions/179898/how-to-round-decimals-using-bc-in-bash
 
+# GLOBAL VARIABLES RESERVED FOR FUNCTION RETURNS START
+# r_Tc	(for returning calculated exposure time corrected for reciprocity)
+# GLOBAL VARIABLES RESERVED FOR FUNCTION RETURNS END
 
-# Function definitions START
-function EV_table(){ # A lookup table. Echoes out the explanation of a given EV value (integers only)
+# FUNCTION DEFINITIONS START
+function EV_table(){ # A lookup table. Echoes out the selected EV value and its explanation
 # expects $1 (an integer [-7, 20] or a string["title", "source", "table_header"])
 
 case $1 in
@@ -81,7 +93,7 @@ case $1 in
 	echo "-2	Night snowscape under full moon and away from city lights."
 	;;
 -1)
-	echo "-1	Start (sunrise) or end (sunset) of the "blue hour" (outdoors) or dim ambient lighting (indoors)."
+	echo "-1	Start (sunrise) or end (sunset) of the \"blue hour\" (outdoors) or dim ambient lighting (indoors)."
 	;;
 0)
 	echo "0	Dim ambient artificial lighting."
@@ -150,23 +162,151 @@ case $1 in
 	;;
 esac
 }
-# Function definitions END
 
+function calculate_reciprocity() {
+# Expects $1 (code for calculation choice, e.g. A1, A2, A3, B, C)
+# Expects $2 (exposure time Tm)
+
+# Self-note about calculating A^B where B is non-integer:
+# "...since if x = a^b, then ln(x) = ln(a^b) = b(ln(a)), we can see that x = exp(b(ln(a))),
+# so if you want to raise things to fractional b's you can use that.
+#
+# Note: In bc the actual exp and ln functions are e and l."
+# Source https://stackoverflow.com/questions/28034126/cannot-get-complex-calculation-to-work-in-bc
+
+# Explanation of variables:
+# Tm: Measured exposure time (s)
+# Tc: Corrected exposure time (s)
+# P: Reciprocity factor ("P-factor") for exposure time correction.
+# Reciprocity failure correction formula (unless a film roll's datasheet says something else): Tc = Tm ^ P
+# Source: https://www.ilfordphoto.com/wp/wp-content/uploads/2017/06/Reciprocity-Failure-Compensation.pdf
+
+Tm=$2
+
+case $1 in
+
+# A1 - Fomapan 400 (reciprocity starts after 1/2 s)
+#	(My best guess according to the table in the data sheet of this film roll. I could be wrong.)
+#	> 1/2 s
+#	Tc = 1.5 * Tm
+#	> 10 s
+#	Tc = 6 * Tm
+#	> 100 s
+#	Tc = 8 * Tm
+"A1")
+	if [[ $(bc <<< "scale=4; $Tm >= 100") == 1 ]];then
+		Tc=$(bc <<< "scale=4; 8 * $Tm")
+	elif [[ $(bc <<< "scale=4; $Tm >= 10") == 1 ]]; then
+		Tc=$(bc <<< "scale=4; 6 * $Tm")
+	elif [[ $(bc <<< "scale=4; $Tm >= 1/2") == 1 ]]; then
+		Tc=$(bc <<< "scale=4; 1.5 * $Tm")
+	else
+		echo ""
+		echo "NOTE: Reciprocity compensation not needed. (Tm < 1/2 s)"
+		Tc=$Tm
+	fi
+
+	# "Return" the result via a global variable
+	r_Tc=$Tc
+	;;
+
+# A2 - Ilford HP5+ (reciprocity starts after 1/2 s)
+	# Tc = Tm ^ 1.31 - Fetched from data sheet
+"A2")
+	if [[ $(bc <<< "scale=4; $Tm >= 1/2") == 1 ]]; then
+		Tc=$(bc -l <<< "scale=4; e(1.31*l($Tm))") # Tc = $Tm ^ 1.31
+	else
+		echo ""
+		echo "NOTE: Reciprocity compensation not needed. (Tm < 1/2 s)"
+		Tc=$Tm
+	fi
+
+	# "Return" the result via a global variable
+	r_Tc=$Tc
+	;;
+
+# A3 - T-Max 400 (reciprocity starts around 10s)
+#        (My best guess according to the table in the data sheet of this film roll. I could be wrong.)
+#        > 10 s
+#        (Use fallback formula, because data sheet says "Change Aperture" for this measured exposure time.)
+#        > 100 s
+#        Tc = 3 * Tm
+"A3")
+	if [[ $(bc <<< "scale=4; $Tm >= 100") == 1 ]]; then # Tm >= 100 s
+		Tc=$(bc <<< "scale=4; 3 * $Tm")
+	elif [[ $(bc <<< "scale=4; $Tm >= 10") == 1 ]]; then # Tm >= 10 s
+		echo "Recommended - Change aperture instead. (Applies to 10 s < Tm < 100 s.)"
+		echo "Calculating rough exposure guess using fallback formula Tc = Tm ^ 1.3 ..."
+		# TODO: Just invoke this same function by passing the choice code "C" and passing the correct formulas.
+		# TODO: TEST THIS CASE after implementing "C"!
+		calculate_reciprocity "C" $Tm # returns result in global variable r_Tc
+		Tc=$r_Tc
+	else # if Tm < 10 s
+		echo ""
+		echo "NOTE: Reciprocity compensation not needed. (Tm < 10 s)"
+		Tc=$Tm
+	fi
+	# "Return" the result via a global variable
+	r_Tc=$Tc
+	;;
+
+# B  Manual Tc = Tm ^ P formula (Good for Ilford film)
+#    enter Tm
+#    enter P
+#    return answer
+"B")
+	# No need to read Tm, because it is already provided as an argument to this function
+	# Only need to enter P
+
+	echo "Enter reciprocity factor P:"
+	read P
+
+	Tc=$(bc -l <<< "scale=4; e($P*l($Tm))") # $Tm ^ P
+
+	# "Return" the result via a global variable
+	r_Tc=$Tc
+	;;
+
+# C  Fallback rule-of-thumb formula
+#    Tc = Tm ^ 1.3, for Tm > 1s.
+#    Enter Tm
+#    return answer
+"C")
+	Tc=$(bc -l <<< "scale=4; e(1.3*l($Tm))") # $Tm ^ 1.3
+
+	# "Return" the result via a global variable
+	r_Tc=$Tc
+	;;
+esac
+
+
+}
+# FUNCTION DEFINITIONS END
+
+# SCRIPT STARTS HERE...
 echo "===== Simple EV calculator ====="
+echo ""
 echo "I want to calculate..."
+echo ""
 echo "1. ISO, Aperture, Shutter Speed --> EV"
 echo "2. EV, ISO, Aperture --> Shutter speed (exposure time) [This option is good for long exposure situations.]"
-echo "3. Display EV table"
-echo "4. Display common ISO and Aperture (F-Stop) values"
+echo "3. Reciprocity Failure Compensation"
+echo "4. Display common ISO and Aperture (F-stop) values"
+echo "5. Display EV table"
+echo ""
 
+echo "Enter choice:"
 read menu_choice
 echo ""
 
 if [[ $menu_choice == 1 ]]; then
+	# Calculate ISO, Aperture (F-Stop), Shutter time --> EV
+
 	# Ask for inputs
 	# Do calculations
 	# Print results
 
+	echo "===== Calculate ISO, Aperture, Shutter Speed --> EV ====="
 	echo "Formula: EV = Log_base2( 100 * aperture² / ISO * shutter speed )"
 	echo ""
 
@@ -185,9 +325,9 @@ if [[ $menu_choice == 1 ]]; then
 	# shutter_speed=0,01
 	# Gives EV = 11.56, aka EV is 11 or 12
 
-	aperture_squared=$( bc -l <<< "$aperture^2" )
+	aperture_squared=$( bc -l <<< "scale=4; $aperture^2" )
 	aperture_over_exposure_time=$( bc -l <<< "scale=4; ((100 * $aperture_squared)/($ISO * $shutter_speed))" ) # the division we will take the logarithm of
-	EV=$(bc -l <<< "l($aperture_over_exposure_time)/l(2)") # calculates the base-2 logarithm
+	EV=$(bc -l <<< "scale=4; l($aperture_over_exposure_time)/l(2)") # calculates the base-2 logarithm
 	echo ""
 	echo "EV = $EV"
 
@@ -198,10 +338,13 @@ if [[ $menu_choice == 1 ]]; then
 	EV_table $EV_rounded
 
 elif [[ $menu_choice == 2 ]]; then
+	# Calculate EV, ISO, Aperture (F-stop) --> Shutter time
+
 	# Ask for inputs
 	# Do calculations
 	# Print results
 
+	echo "===== Calculate EV, ISO, Aperture --> Shutter speed (exposure time) ====="
 	echo "Formula: Shutter speed (s) = 100 * Aperture² / ISO * 2^EV"
 	echo ""
 
@@ -214,31 +357,53 @@ elif [[ $menu_choice == 2 ]]; then
 	echo "Enter Aperture (F-Stop):"
 	read aperture
 
-	aperture_squared=$( bc -l <<< "$aperture^2" )
-	two_to_power_of_EV=$( bc -l <<< "2^$EV ")
+	aperture_squared=$( bc -l <<< "scale=4; $aperture^2" )
+	two_to_power_of_EV=$( bc -l <<< "scale=4; 2^$EV ") # works because $EV is always expected to be an integer, in our use case. Different approach would be neded if EV was non-integer
 	exposure_time=$( bc -l <<< "scale=4; ((100 * $aperture_squared)/($ISO * $two_to_power_of_EV))" )
 	echo ""
 	echo "Exposure time = $exposure_time seconds"
 
+	# TODO: IMPLEMENT THE FOLLOWING...
 	# TODO:
-	# If exposure time is above 1s, ask if user wants to correct for reciprocity (Y/n). Pre-selected reciprocity calculation formula is for Ilford HP5+. Or the fallback-formula?
-	# TA = TM^p (fallback formula)
+	# If exposure time is above 1/2 s, ask if user wants to correct for reciprocity (Y/n). Pre-selected reciprocity calculation formula is for Ilford HP5+. Or the fallback-formula?
+	# Tc = Tm^p (fallback formula)
 	# echo "Calculate time adjusted for reciprocity? (Y/n)"
 
 elif [[ $menu_choice == 3 ]]; then
-	# Display EV table and quit
+	# Calculate Reciprocity Failure Compensation
 
-	for EV_value in "title" "source" "table_header" {-7..20};
-	do
-		EV_table $EV_value
-	done
+	echo "===== Reciprocity Failure Compensation ====="
+
+	echo "A: A pre-selected film roll"
+	echo "   (A1) - Fomapan 400 (reciprocity after 1/2 s)"
+	echo "   (A2) - Ilford HP5 (reciprocity after 1/2 s)"
+	echo "   (A3) - T-max 400 (reciprocity after 10 s)"
+	echo ""
+
+	echo "(B): Tc = Tm ^ P formula, plug in values yourself. (Good for Ilford films)"
+	echo ""
+
+	printf "(C): Tc = Tm ^ 1.3 - A fallback, rule-of-thumb calculation. Recommended for Tm > 1 s.\n     (Aka. \"I have no clue about my film's reciprocity behavior.\")\n     Try this for...\n     - Gold 200\n     - UltraMax 400\n     - Portra 800\n     - etc."
+	echo ""
+	echo ""
+
+	echo "Enter choice:"
+	read reciprocity_calculation_choice
+	echo ""
+	echo "Enter measured exposure time Tm (s):"
+	read Tm
+
+	calculate_reciprocity $reciprocity_calculation_choice $Tm # returns result in global variable r_Tc
+	echo ""
+	echo "Corrected exposure time Tc = $r_Tc s"
 
 elif [[ $menu_choice == 4 ]]; then
 	# Display common ISO and Aperture (F-Stop) values and quit
 
-	echo "* Common ISO (film speed) values..."
+	echo "===== Common ISO (film speed) and Aperture (F-stop) values ====="
 	echo ""
 
+	echo "--- ISO ---"
 	printf "Slow speeds: \nISO 50 \nISO 100-125 \nISO 200"
 	echo ""
 	echo ""
@@ -257,9 +422,7 @@ elif [[ $menu_choice == 4 ]]; then
 	echo "          https://www.guidetofilmphotography.com/film-speed-uses.html"
 	echo ""
 
-	echo "* Common Aperture (F-stop) values..."
-	echo ""
-
+	echo "--- Common Aperture (F-stop) values ---"
 	echo "f/1"
 	echo "f/1.4"
 	echo "f/2"
@@ -276,6 +439,14 @@ elif [[ $menu_choice == 4 ]]; then
 	echo "Source - \"F Stop Chart: Lens Apertures for Full Stops, 1/2 Stops & 1/3 Stops\", Have Camera, Will Travel"
 	echo "         https://havecamerawilltravel.com/f-stop-chart-lens-apertures/"
 	echo ""
+
+elif [[ $menu_choice == 5 ]]; then
+	# Display EV table and quit
+
+	for EV_value in "title" "source" "table_header" {-7..20};
+	do
+		EV_table $EV_value
+	done
 else
 	echo "Bad input."
 fi
