@@ -24,6 +24,7 @@
 #					- How to "return" values from functions (using either return (some int from 0-255) or by using global variables, like r_Tc in this script.)
 # (2024-02-24): Moved reciprocity calculation menu into its own function, menu_calculate_reciprocity, to prevent DRY when calculate_reciprocity is invoked from multiple places.
 #		Implemented offering reciprocity compensation calculations if shutter speed / exposure time in menu choices 1 and 2 are over 1/2 s.
+#		Moved code of menu_calculate_reciprocity into calculate_reciprocity to prevent DRY. Adjusted the argument requirements of calculate_reciprocity, and the parameters passed to it everywhere this function is invoked, to adapt for this adjustment.
 
 # Outline...
 # Ask user what they want to do...
@@ -160,26 +161,13 @@ case $1 in
 esac
 }
 
-function menu_calculate_reciprocity(){
-echo "===== Reciprocity Failure Compensation ====="
-
-echo "A: A pre-selected film roll"
-echo "   (A1) - Fomapan 400 (reciprocity after 1/2 s)"
-echo "   (A2) - Ilford HP5 (reciprocity after 1/2 s)"
-echo "   (A3) - T-max 400 (reciprocity after 10 s)"
-echo ""
-
-echo "(B): Tc = Tm ^ P formula, plug in values yourself. (Good for Ilford films)"
-echo ""
-
-printf "(C): Tc = Tm ^ 1.3 - A fallback, rule-of-thumb calculation. Recommended for Tm > 1 s.\n     (Aka. \"I have no clue about my film's reciprocity behavior.\")\n     Try this for...\n     - Gold 200\n     - UltraMax 400\n     - Portra 800\n     - etc."
-echo ""
-echo ""
-}
-
 function calculate_reciprocity() {
-# Expects $1 (code for calculation choice, e.g. A1, A2, A3, B, C)
-# Expects $2 (exposure time Tm)
+# Expects $1 as variable display_choice_menu, expected values are "display_choice_menu" or "don't_display_choice_menu"
+# Expects $2 as variable calculation_choice, expected values are  "prompt_for_choice" or the code of a calculation choice ("A1" xor "A2" xor "A3" xor "B" xor "C")
+# Expects $3 as variable Tm, expected values are "prompt_for_Tm" or a provided exposure time Tm (s)
+display_choice_menu=$1
+calculation_choice=$2
+Tm=$3
 
 # Self-note about calculating A^B where B is non-integer:
 # "...since if x = a^b, then ln(x) = ln(a^b) = b(ln(a)), we can see that x = exp(b(ln(a))),
@@ -188,16 +176,44 @@ function calculate_reciprocity() {
 # Note: In bc the actual exp and ln functions are e and l."
 # Source https://stackoverflow.com/questions/28034126/cannot-get-complex-calculation-to-work-in-bc
 
-# Explanation of variables:
+# Explanation of variables in the formulas:
 # Tm: Measured exposure time (s)
 # Tc: Corrected exposure time (s)
 # P: Reciprocity factor ("P-factor") for exposure time correction.
-# Reciprocity failure correction formula (unless a film roll's datasheet says something else): Tc = Tm ^ P
+# Fallback reciprocity failure correction formula that is used (unless a film roll's datasheet says something else): Tc = Tm ^ P
 # Source: https://www.ilfordphoto.com/wp/wp-content/uploads/2017/06/Reciprocity-Failure-Compensation.pdf
 
-Tm=$2
+if [[ $display_choice_menu=="display_choice_menu" ]]; then
+	echo "===== Reciprocity Failure Compensation ====="
 
-case $1 in
+	echo "A: A pre-selected film roll"
+	echo "   (A1) - Fomapan 400 (reciprocity after 1/2 s)"
+	echo "   (A2) - Ilford HP5+ (reciprocity after 1/2 s)"
+	echo "   (A3) - T-max 400 (reciprocity after 10 s)"
+	echo ""
+
+	echo "(B): Tc = Tm ^ P formula, plug in values yourself. (Good for Ilford films)"
+	echo ""
+
+	printf "(C): Tc = Tm ^ 1.3 - A fallback, rule-of-thumb calculation. Recommended for Tm > 1 s.\n     (Aka. \"I have no clue about my film's reciprocity behavior.\")\n     Try this for...\n     - Gold 200\n     - UltraMax 400\n     - Portra 800\n     - etc."
+	echo ""
+fi
+
+if [[ $calculation_choice=="prompt_for_choice" ]]; then
+	echo ""
+	echo "Enter choice:"
+	read calculation_choice
+# else use provided argument $2, already stored in variable calculation_choice, as the choice code
+fi
+
+# for menu choice 1 and 2 of this script, use provided argument as Tm
+if [[ $Tm == "prompt_for_Tm" ]]; then
+	echo "Enter measured exposure time Tm (s):"
+	read Tm
+fi
+
+
+case $calculation_choice in
 
 # A1 - Fomapan 400 (reciprocity starts after 1/2 s)
 #	(My best guess according to the table in the data sheet of this film roll. I could be wrong.)
@@ -251,7 +267,7 @@ case $1 in
 	elif [[ $(bc <<< "scale=4; $Tm >= 10") == 1 ]]; then # Tm >= 10 s
 		echo "Recommended - Change aperture instead. (Applies to 10 s < Tm < 100 s.)"
 		echo "Calculating rough exposure guess using fallback formula Tc = Tm ^ 1.3 ..."
-		calculate_reciprocity "C" $Tm # returns result in global variable r_Tc
+		calculate_reciprocity "don't_display_choice_menu" "C" $Tm # returns result in global variable r_Tc
 		Tc=$r_Tc
 	else # if Tm < 10 s
 		echo ""
@@ -357,11 +373,7 @@ if [[ $menu_choice == 1 ]]; then
 
 		read calculate_reciprocity_y_n
 		if [[ $calculate_reciprocity_y_n == "y" ]]; then
-			menu_calculate_reciprocity
-			echo "Enter choice:"
-			read reciprocity_calculation_choice
-
-			calculate_reciprocity $reciprocity_calculation_choice $exposure_time # returns result in global variable r_Tc
+			calculate_reciprocity "display_choice_menu" "prompt_for_choice" $exposure_time # returns result in global variable r_Tc
 			echo ""
 			echo "Corrected exposure time Tc = $r_Tc s"
 		fi
@@ -399,12 +411,10 @@ elif [[ $menu_choice == 2 ]]; then
 		echo "Exposure time is above 1/2 s. Calculate reciprocity failure compensation? (y/N):"
 
 		read calculate_reciprocity_y_n
-		if [[ $calculate_reciprocity_y_n == "y" ]]; then
-			menu_calculate_reciprocity
-			echo "Enter choice:"
-			read reciprocity_calculation_choice
+		echo ""
 
-			calculate_reciprocity $reciprocity_calculation_choice $exposure_time # returns result in global variable r_Tc
+		if [[ $calculate_reciprocity_y_n == "y" ]]; then
+			calculate_reciprocity "display_choice_menu" "prompt_for_choice" $exposure_time # returns result in global variable r_Tc
 			echo ""
 			echo "Corrected exposure time Tc = $r_Tc s"
 		fi
@@ -412,16 +422,7 @@ elif [[ $menu_choice == 2 ]]; then
 
 elif [[ $menu_choice == 3 ]]; then
 	# Calculate Reciprocity Failure Compensation
-
-	menu_calculate_reciprocity
-	echo "Enter choice:"
-	read reciprocity_calculation_choice
-
-	echo ""
-	echo "Enter measured exposure time Tm (s):"
-	read Tm
-
-	calculate_reciprocity $reciprocity_calculation_choice $Tm # returns result in global variable r_Tc
+	calculate_reciprocity "display_choice_menu" "prompt_for_choice" "prompt_for_Tm" # returns result in global variable r_Tc
 	echo ""
 	echo "Corrected exposure time Tc = $r_Tc s"
 
