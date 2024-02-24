@@ -11,20 +11,20 @@
 # * Shutter Speed (s) = 100 * Aperture² / ISO * 2^EV
 
 # Changelog:
-# (2024-02-16): First idea and minimal version implemented.
-# (2024-02-20): Added option to 1) Calculate ISO, Aperture, Shutter time --> EV; 2) Calculate EV, ISO, Aperture --> Shutter time; 5) Display EV table.
-# (2024-02-21): Fixed calculation formulas and implementations for ISO, Aperture, Shutter time --> EV;
-# 		Fixed calculation formulas and implementations for EV, ISO, Aperture --> Shutter time;
-#		Implemented displaying EV table;
-#		General fixes in comments and code.
-#		Added option 4) Display common ISO and Aperture (F-stop) values.
-#		Added option 3) Calculate Reciprocity Railure Compensation
-# (2024-02-22): Implemented option 3) Calculate Reciprocity Failure Compensation
+# (2024-02-16): - First idea and minimal version implemented.
+# (2024-02-20): - Added option to 1) Calculate ISO, Aperture, Shutter time --> EV; 2) Calculate EV, ISO, Aperture --> Shutter time; 5) Display EV table.
+# (2024-02-21): - Fixed calculation formulas and implementations for ISO, Aperture, Shutter time --> EV;
+# 		- Fixed calculation formulas and implementations for EV, ISO, Aperture --> Shutter time;
+#		- Implemented displaying EV table;
+#		- General fixes in comments and code.
+#		- Added option 4) Display common ISO and Aperture (F-stop) values.
+#		- Added option 3) Calculate Reciprocity Railure Compensation
+# (2024-02-22): - Implemented option 3) Calculate Reciprocity Failure Compensation
 #		Today I learned...	- How to calculate with non-integer exponents in 'bc' (e.g. $(bc -l <<< "scale=4; e(1.31*l($Tm))" calculates $Tm ^ 1.31)
 #					- How to "return" values from functions (using either return (some int from 0-255) or by using global variables, like r_Tc in this script.)
-# (2024-02-24): Moved reciprocity calculation menu into its own function, menu_calculate_reciprocity, to prevent DRY when calculate_reciprocity is invoked from multiple places.
-#		Implemented offering reciprocity compensation calculations if shutter speed / exposure time in menu choices 1 and 2 are over 1/2 s.
-#		Moved code of menu_calculate_reciprocity into calculate_reciprocity to prevent DRY. Adjusted the argument requirements of calculate_reciprocity, and the parameters passed to it everywhere this function is invoked, to adapt for this adjustment.
+# (2024-02-24): - Moved reciprocity calculation menu into its own function, menu_calculate_reciprocity, to prevent DRY when calculate_reciprocity is invoked from multiple places.
+#		- Implemented offering reciprocity compensation calculations if shutter speed / exposure time in menu choices 1 and 2 are over 1/2 s.
+#		- Moved code of menu_calculate_reciprocity into calculate_reciprocity to prevent DRY. Adjusted the argument requirements of calculate_reciprocity, and the parameters passed to it everywhere this function is invoked, to adapt for this adjustment.
 
 # Outline...
 # Ask user what they want to do...
@@ -44,7 +44,7 @@
 # Echo which values have been plugged into the formula
 # Echo result to the user.
 #
-# TODO: Polish "read" statements to accept input on same line as the output text.
+# TODO: Polish the "read" statements to accept input on same line as the output text.
 
 # Rounding and ceil/floor sources:
 #https://duckduckgo.com/?q=bash+ceiling+function&t=brave&atb=v378-1&ia=web
