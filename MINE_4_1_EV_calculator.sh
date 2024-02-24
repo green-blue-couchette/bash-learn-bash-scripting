@@ -22,6 +22,8 @@
 # (2024-02-22): Implemented option 3) Calculate Reciprocity Failure Compensation
 #		Today I learned...	- How to calculate with non-integer exponents in 'bc' (e.g. $(bc -l <<< "scale=4; e(1.31*l($Tm))" calculates $Tm ^ 1.31)
 #					- How to "return" values from functions (using either return (some int from 0-255) or by using global variables, like r_Tc in this script.)
+# (2024-02-24): Moved reciprocity calculation menu into its own function, menu_calculate_reciprocity, to prevent DRY when calculate_reciprocity is invoked from multiple places.
+#		Implemented offering reciprocity compensation calculations if shutter speed / exposure time in menu choices 1 and 2 are over 1/2 s.
 
 # Outline...
 # Ask user what they want to do...
@@ -36,11 +38,6 @@
 # TODO (could): Add some error checking for EV values input ( no less than -7. If over 20, default to 20 -- display message "defaulting to EV=20")
 # TODO (could): x. Option to show different combinations of aperture/shutter time to get the same EV value?
 
-# TODO: For 1, fetch explanation of calculated reciprocity value from a lookup table (case statements?)
-# TODO: For 1, ask if user wants RECIPROCITY FOR THE SHUTTER TIME. (Recommended over 1/2s exposure.)
-# TODO: For 2, ask if user wants RECIPROCITY for the shutter time.
-# 	Fetch reciprocity from a lookup table of film rolls (Gold 200, UltraMax 400, Fomapan 400, ILFORD HP5+, Velvia 100) (case statements). Default to grainydays' formula if reciprocity data is unavailable for a film roll.
-#
 # TODO: Before reciprocity calculation is done...
 # Echo FORMULA
 # Echo which values have been plugged into the formula
@@ -163,6 +160,23 @@ case $1 in
 esac
 }
 
+function menu_calculate_reciprocity(){
+echo "===== Reciprocity Failure Compensation ====="
+
+echo "A: A pre-selected film roll"
+echo "   (A1) - Fomapan 400 (reciprocity after 1/2 s)"
+echo "   (A2) - Ilford HP5 (reciprocity after 1/2 s)"
+echo "   (A3) - T-max 400 (reciprocity after 10 s)"
+echo ""
+
+echo "(B): Tc = Tm ^ P formula, plug in values yourself. (Good for Ilford films)"
+echo ""
+
+printf "(C): Tc = Tm ^ 1.3 - A fallback, rule-of-thumb calculation. Recommended for Tm > 1 s.\n     (Aka. \"I have no clue about my film's reciprocity behavior.\")\n     Try this for...\n     - Gold 200\n     - UltraMax 400\n     - Portra 800\n     - etc."
+echo ""
+echo ""
+}
+
 function calculate_reciprocity() {
 # Expects $1 (code for calculation choice, e.g. A1, A2, A3, B, C)
 # Expects $2 (exposure time Tm)
@@ -237,8 +251,6 @@ case $1 in
 	elif [[ $(bc <<< "scale=4; $Tm >= 10") == 1 ]]; then # Tm >= 10 s
 		echo "Recommended - Change aperture instead. (Applies to 10 s < Tm < 100 s.)"
 		echo "Calculating rough exposure guess using fallback formula Tc = Tm ^ 1.3 ..."
-		# TODO: Just invoke this same function by passing the choice code "C" and passing the correct formulas.
-		# TODO: TEST THIS CASE after implementing "C"!
 		calculate_reciprocity "C" $Tm # returns result in global variable r_Tc
 		Tc=$r_Tc
 	else # if Tm < 10 s
@@ -316,7 +328,7 @@ if [[ $menu_choice == 1 ]]; then
 	echo "Enter Aperture (F-Stop):"
 	read aperture
 
-	echo "Enter Shutter Speed (s):"
+	echo "Enter Shutter Speed (s) (without reciprocity failure compensation):"
 	read shutter_speed
 
 	# dummy values (debug and demoing)
@@ -336,6 +348,25 @@ if [[ $menu_choice == 1 ]]; then
 	# python3 -c "print(round(3.4))" # Alternative solution for rounding
 	echo "Suitable for this lighting situation..."
 	EV_table $EV_rounded
+
+	# IF ENTERED EXPOSURE TIME IS > 1/2 S, OFFER TO CALCULATE RECIPROCITY FAILURE COMPENSATION Tc
+	echo ""
+	exposure_time=$shutter_speed
+	if [[ $(bc <<< "scale=4; $exposure_time > 1/2") == 1 ]]; then
+		echo "Exposure time is above 1/2 s. Calculate reciprocity failure compensation? (y/N):"
+
+		read calculate_reciprocity_y_n
+		if [[ $calculate_reciprocity_y_n == "y" ]]; then
+			menu_calculate_reciprocity
+			echo "Enter choice:"
+			read reciprocity_calculation_choice
+
+			calculate_reciprocity $reciprocity_calculation_choice $exposure_time # returns result in global variable r_Tc
+			echo ""
+			echo "Corrected exposure time Tc = $r_Tc s"
+		fi
+	fi
+
 
 elif [[ $menu_choice == 2 ]]; then
 	# Calculate EV, ISO, Aperture (F-stop) --> Shutter time
@@ -361,34 +392,31 @@ elif [[ $menu_choice == 2 ]]; then
 	two_to_power_of_EV=$( bc -l <<< "scale=4; 2^$EV ") # works because $EV is always expected to be an integer, in our use case. Different approach would be neded if EV was non-integer
 	exposure_time=$( bc -l <<< "scale=4; ((100 * $aperture_squared)/($ISO * $two_to_power_of_EV))" )
 	echo ""
-	echo "Exposure time = $exposure_time seconds"
+	echo "Exposure time = $exposure_time seconds."
 
-	# TODO: IMPLEMENT THE FOLLOWING...
-	# TODO:
-	# If exposure time is above 1/2 s, ask if user wants to correct for reciprocity (Y/n). Pre-selected reciprocity calculation formula is for Ilford HP5+. Or the fallback-formula?
-	# Tc = Tm^p (fallback formula)
-	# echo "Calculate time adjusted for reciprocity? (Y/n)"
+	# IF EXPOSURE TIME IS > 1/2 S, OFFER TO CALCULATE RECIPROCITY FAILURE COMPENSATION Tc
+	if [[ $(bc <<< "scale=4; $exposure_time > 1/2") == 1 ]]; then
+		echo "Exposure time is above 1/2 s. Calculate reciprocity failure compensation? (y/N):"
+
+		read calculate_reciprocity_y_n
+		if [[ $calculate_reciprocity_y_n == "y" ]]; then
+			menu_calculate_reciprocity
+			echo "Enter choice:"
+			read reciprocity_calculation_choice
+
+			calculate_reciprocity $reciprocity_calculation_choice $exposure_time # returns result in global variable r_Tc
+			echo ""
+			echo "Corrected exposure time Tc = $r_Tc s"
+		fi
+	fi
 
 elif [[ $menu_choice == 3 ]]; then
 	# Calculate Reciprocity Failure Compensation
 
-	echo "===== Reciprocity Failure Compensation ====="
-
-	echo "A: A pre-selected film roll"
-	echo "   (A1) - Fomapan 400 (reciprocity after 1/2 s)"
-	echo "   (A2) - Ilford HP5 (reciprocity after 1/2 s)"
-	echo "   (A3) - T-max 400 (reciprocity after 10 s)"
-	echo ""
-
-	echo "(B): Tc = Tm ^ P formula, plug in values yourself. (Good for Ilford films)"
-	echo ""
-
-	printf "(C): Tc = Tm ^ 1.3 - A fallback, rule-of-thumb calculation. Recommended for Tm > 1 s.\n     (Aka. \"I have no clue about my film's reciprocity behavior.\")\n     Try this for...\n     - Gold 200\n     - UltraMax 400\n     - Portra 800\n     - etc."
-	echo ""
-	echo ""
-
+	menu_calculate_reciprocity
 	echo "Enter choice:"
 	read reciprocity_calculation_choice
+
 	echo ""
 	echo "Enter measured exposure time Tm (s):"
 	read Tm
