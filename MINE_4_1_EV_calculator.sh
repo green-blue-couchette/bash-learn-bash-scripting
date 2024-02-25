@@ -10,22 +10,6 @@
 #   (EV formula taken from this web page: https://www.omnicalculator.com/other/exposure)
 # * Shutter Speed (s) = 100 * Aperture² / ISO * 2^EV
 
-# Changelog:
-# (2024-02-16): - First idea and minimal version implemented.
-# (2024-02-20): - Added option to 1) Calculate ISO, Aperture, Shutter time --> EV; 2) Calculate EV, ISO, Aperture --> Shutter time; 5) Display EV table.
-# (2024-02-21): - Fixed calculation formulas and implementations for ISO, Aperture, Shutter time --> EV;
-# 		- Fixed calculation formulas and implementations for EV, ISO, Aperture --> Shutter time;
-#		- Implemented displaying EV table;
-#		- General fixes in comments and code.
-#		- Added option 4) Display common ISO and Aperture (F-stop) values.
-#		- Added option 3) Calculate Reciprocity Railure Compensation
-# (2024-02-22): - Implemented option 3) Calculate Reciprocity Failure Compensation
-#		Today I learned...	- How to calculate with non-integer exponents in 'bc' (e.g. $(bc -l <<< "scale=4; e(1.31*l($Tm))" calculates $Tm ^ 1.31)
-#					- How to "return" values from functions (using either return (some int from 0-255) or by using global variables, like r_Tc in this script.)
-# (2024-02-24): - Moved reciprocity calculation menu into its own function, menu_calculate_reciprocity, to prevent DRY when calculate_reciprocity is invoked from multiple places.
-#		- Implemented offering reciprocity compensation calculations if shutter speed / exposure time in menu choices 1 and 2 are over 1/2 s.
-#		- Moved code of menu_calculate_reciprocity into calculate_reciprocity to prevent DRY. Adjusted the argument requirements of calculate_reciprocity, and the parameters passed to it everywhere this function is invoked, to adapt for this adjustment.
-
 # Outline...
 # Ask user what they want to do...
 # 1. Calculate ISO, Aperture (F-stop), Shutter time --> EV
@@ -47,20 +31,57 @@
 # TODO: Polish the "read" statements to accept input on same line as the output text.
 
 # Rounding and ceil/floor sources:
-#https://duckduckgo.com/?q=bash+ceiling+function&t=brave&atb=v378-1&ia=web
-#https://codechacha.com/en/shell-script-ceiling-halfup-floor/
-#https://duckduckgo.com/?q=round+off+decimal+in+bash&t=brave&atb=v378-1&ia=web
-#https://askubuntu.com/questions/179898/how-to-round-decimals-using-bc-in-bash
+# https://duckduckgo.com/?q=bash+ceiling+function&t=brave&atb=v378-1&ia=web
+# https://codechacha.com/en/shell-script-ceiling-halfup-floor/
+# https://duckduckgo.com/?q=round+off+decimal+in+bash&t=brave&atb=v378-1&ia=web
+# https://askubuntu.com/questions/179898/how-to-round-decimals-using-bc-in-bash
+
+# Changelog:
+# (2024-02-16): - First idea and minimal version implemented.
+# (2024-02-20): - Added option to 1) Calculate ISO, Aperture, Shutter time --> EV; 2) Calculate EV, ISO, Aperture --> Shutter time; 5) Display EV table.
+# (2024-02-21): - Fixed calculation formulas and implementations for ISO, Aperture, Shutter time --> EV;
+# 		- Fixed calculation formulas and implementations for EV, ISO, Aperture --> Shutter time;
+#		- Implemented displaying EV table;
+#		- General fixes in comments and code.
+#		- Added option 4) Display common ISO and Aperture (F-stop) values.
+#		- Added option 3) Calculate Reciprocity Railure Compensation
+# (2024-02-22): - Implemented option 3) Calculate Reciprocity Failure Compensation
+#		Today I learned...	- How to calculate with non-integer exponents in 'bc' (e.g. $(bc -l <<< "scale=4; e(1.31*l($Tm))" calculates $Tm ^ 1.31)
+#					- How to "return" values from functions (using either return (some int from 0-255) or by using global variables, like r_Tc in this script.)
+# (2024-02-24): - Moved reciprocity calculation menu into its own function, menu_calculate_reciprocity, to prevent DRY when calculate_reciprocity is invoked from multiple places.
+#		- Implemented offering reciprocity compensation calculations if shutter speed / exposure time in menu choices 1 and 2 are over 1/2 s.
+#		- Moved code of menu_calculate_reciprocity into calculate_reciprocity to prevent DRY. Adjusted the argument requirements of calculate_reciprocity, and the parameters passed to it everywhere this function is invoked, to adapt for this adjustment.
+# (2024-02-25): - Added function to validate EV value, validate_EV, passed to function EV_table, for cases where an EV < -7 or EV > 20 is passed to EV_table.
+#		- Made printout for "Suitable for this lighting condition" look nicer.
+
 
 # GLOBAL VARIABLES RESERVED FOR FUNCTION RETURNS START
-# r_Tc	(for returning calculated exposure time corrected for reciprocity)
+# r_Tc - for returning calculated exposure time corrected for reciprocity
+# r_validated_EV - for returning validated EV values to function "EV_table"
 # GLOBAL VARIABLES RESERVED FOR FUNCTION RETURNS END
 
 # FUNCTION DEFINITIONS START
+function validate_EV(){	# validates EV value before it is used in EV_table. Invoked inside the start of EV_table.
+# expects #1, an integer (EV value)
+EV_value=$1
+
+if [[ $EV_value == "title" || $EV_value == "source" || $EV_value == "table_header" ]]; then # if EV_value is one of the text rows from the table, then just pass the value through without modification.
+	r_validated_EV=$EV_value
+elif [[ $(bc <<< "$EV_value < -7" ) == 1 ]]; then # a ceiling-like filter
+	r_validated_EV=-7
+elif [[ $(bc <<< "$EV_value > 20") == 1 ]]; then # a floor-like filter
+	r_validated_EV=20
+else
+	r_validated_EV=$EV_value # if given EV is within the correct interval, just let it pass through
+fi
+}
+
 function EV_table(){ # A lookup table. Echoes out the selected EV value and its explanation
 # expects $1 (an integer [-7, 20] or a string["title", "source", "table_header"])
 
-case $1 in
+validate_EV $1 # "returns" value in r_validated_EV
+
+case $r_validated_EV in
 "title")
 	echo "===== EV TABLE ====="
 	;;
@@ -360,10 +381,15 @@ if [[ $menu_choice == 1 ]]; then
 	echo "EV = $EV"
 
 	# Round value and display an explanation of calculated EV value.
-	EV_rounded=$(/usr/bin/printf "%.0f" $EV)
+	EV_rounded=$(/usr/bin/printf "%.0f" $EV) # TODO. ADJUST TO MAKE SUITABLE FOR THE NEW VALIDATION FUNCTION validate_EV.
 	# python3 -c "print(round(3.4))" # Alternative solution for rounding
-	echo "Suitable for this lighting situation..."
-	EV_table $EV_rounded
+	echo ""
+	echo "Suitable for this lighting condition..."
+
+	for EV_table_row in "table_header" $EV_rounded;
+	do
+		EV_table $EV_table_row
+	done
 
 	# IF ENTERED EXPOSURE TIME IS > 1/2 S, OFFER TO CALCULATE RECIPROCITY FAILURE COMPENSATION Tc
 	echo ""
