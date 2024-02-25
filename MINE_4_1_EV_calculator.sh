@@ -20,7 +20,6 @@
 
 
 # TODO (would be nice): Add disclaimer about me not being liable if user's photos turn out unexpected.
-# TODO (could): Add some error checking for EV values input ( no less than -7. If over 20, default to 20 -- display message "defaulting to EV=20")
 # TODO (could): x. Option to show different combinations of aperture/shutter time to get the same EV value?
 
 # TODO: Before reciprocity calculation is done...
@@ -53,11 +52,13 @@
 #		- Moved code of menu_calculate_reciprocity into calculate_reciprocity to prevent DRY. Adjusted the argument requirements of calculate_reciprocity, and the parameters passed to it everywhere this function is invoked, to adapt for this adjustment.
 # (2024-02-25): - Added function to validate EV value, validate_EV, passed to function EV_table, for cases where an EV < -7 or EV > 20 is passed to EV_table.
 #		- Made printout for "Suitable for this lighting condition" look nicer.
+#		- Added printout of closest shutter dial value for the calculated exposure times for menu items 1 and 2 (both measured and reciprocity-corrected time).
 
 
 # GLOBAL VARIABLES RESERVED FOR FUNCTION RETURNS START
 # r_Tc - for returning calculated exposure time corrected for reciprocity
 # r_validated_EV - for returning validated EV values to function "EV_table"
+# r_sdv_msg - for returning strings produced by function shutter_dial_value_message
 # GLOBAL VARIABLES RESERVED FOR FUNCTION RETURNS END
 
 # FUNCTION DEFINITIONS START
@@ -327,8 +328,27 @@ case $calculation_choice in
 	r_Tc=$Tc
 	;;
 esac
+}
 
+function shutter_dial_value_message() {
+# Expects $1, a number (either a decimal number or an integer, all positive.)
+# Returns a message with the appropriate shutter dial to choose on the camera. E.g. "Turn shutter dial to value closest to 125."
+# Returns value in global var r_sdv_msg
+# Note: Does not handle negative value arguments in any foreseen way.
+exposure_time_s=$1
 
+if [[ $( bc <<< "scale=4; $exposure_time_s < 1") == 1 ]]; then # if exposure time is < 1s
+	dial_value_ms=$(bc <<< "scale=0; 1/$exposure_time_s")
+	r_sdv_msg="Turn your shutter dial to the value closest to $dial_value_ms."
+else # if exposure time is >= 1s
+	if [[ $(bc <<< "scale=4; $exposure_time_s <= 4.1") == 1 ]]; then # if exposure time is > 1s but <= 4.1s.
+		# round $exposure_time_s to integer
+		exposure_time_s_rounded=$(/usr/bin/printf "%.0f" $exposure_time_s)
+		r_sdv_msg="Turn your shutter dial to the value closest to $exposure_time_s_rounded s or BULB MODE."
+	else # if exposure time is > 4.1 s
+		r_sdv_msg="Turn your shutter dial to BULB MODE."
+	fi
+fi
 }
 # FUNCTION DEFINITIONS END
 
@@ -375,13 +395,13 @@ if [[ $menu_choice == 1 ]]; then
 	# Gives EV = 11.56, aka EV is 11 or 12
 
 	aperture_squared=$( bc -l <<< "scale=4; $aperture^2" )
-	aperture_over_exposure_time=$( bc -l <<< "scale=4; ((100 * $aperture_squared)/($ISO * $shutter_speed))" ) # the division we will take the logarithm of
-	EV=$(bc -l <<< "scale=4; l($aperture_over_exposure_time)/l(2)") # calculates the base-2 logarithm
+	aperture_over_exposure_time_s=$( bc -l <<< "scale=4; ((100 * $aperture_squared)/($ISO * $shutter_speed))" ) # the division we will take the logarithm of
+	EV=$(bc -l <<< "scale=4; l($aperture_over_exposure_time_s)/l(2)") # calculates the base-2 logarithm
 	echo ""
 	echo "EV = $EV"
 
 	# Round value and display an explanation of calculated EV value.
-	EV_rounded=$(/usr/bin/printf "%.0f" $EV) # TODO. ADJUST TO MAKE SUITABLE FOR THE NEW VALIDATION FUNCTION validate_EV.
+	EV_rounded=$(/usr/bin/printf "%.0f" $EV)
 	# python3 -c "print(round(3.4))" # Alternative solution for rounding
 	echo ""
 	echo "Suitable for this lighting condition..."
@@ -393,15 +413,19 @@ if [[ $menu_choice == 1 ]]; then
 
 	# IF ENTERED EXPOSURE TIME IS > 1/2 S, OFFER TO CALCULATE RECIPROCITY FAILURE COMPENSATION Tc
 	echo ""
-	exposure_time=$shutter_speed
-	if [[ $(bc <<< "scale=4; $exposure_time > 1/2") == 1 ]]; then
+	exposure_time_s=$shutter_speed
+	if [[ $(bc <<< "scale=4; $exposure_time_s > 1/2") == 1 ]]; then
 		echo "Exposure time is above 1/2 s. Calculate reciprocity failure compensation? (y/N):"
 
 		read calculate_reciprocity_y_n
 		if [[ $calculate_reciprocity_y_n == "y" ]]; then
-			calculate_reciprocity "display_choice_menu" "prompt_for_choice" $exposure_time # returns result in global variable r_Tc
+			calculate_reciprocity "display_choice_menu" "prompt_for_choice" $exposure_time_s # returns result in global variable r_Tc
+
+			# get shutter dial message
+			shutter_dial_value_message $r_Tc # returns string in global variable r_sdv_msg
+
 			echo ""
-			echo "Corrected exposure time Tc = $r_Tc s"
+			echo "Corrected exposure time Tc = $r_Tc s. $r_sdv_msg"
 		fi
 	fi
 
@@ -428,21 +452,27 @@ elif [[ $menu_choice == 2 ]]; then
 
 	aperture_squared=$( bc -l <<< "scale=4; $aperture^2" )
 	two_to_power_of_EV=$( bc -l <<< "scale=4; 2^$EV ") # works because $EV is always expected to be an integer, in our use case. Different approach would be neded if EV was non-integer
-	exposure_time=$( bc -l <<< "scale=4; ((100 * $aperture_squared)/($ISO * $two_to_power_of_EV))" )
+	exposure_time_s=$( bc -l <<< "scale=4; ((100 * $aperture_squared)/($ISO * $two_to_power_of_EV))" )
+
+	shutter_dial_value_message $exposure_time_s # returns string in global variable r_sdv_msg
 	echo ""
-	echo "Exposure time = $exposure_time seconds."
+	echo "Exposure time = $exposure_time_s seconds. $r_sdv_msg"
 
 	# IF EXPOSURE TIME IS > 1/2 S, OFFER TO CALCULATE RECIPROCITY FAILURE COMPENSATION Tc
-	if [[ $(bc <<< "scale=4; $exposure_time > 1/2") == 1 ]]; then
+	if [[ $(bc <<< "scale=4; $exposure_time_s > 1/2") == 1 ]]; then
 		echo "Exposure time is above 1/2 s. Calculate reciprocity failure compensation? (y/N):"
 
 		read calculate_reciprocity_y_n
 		echo ""
 
 		if [[ $calculate_reciprocity_y_n == "y" ]]; then
-			calculate_reciprocity "display_choice_menu" "prompt_for_choice" $exposure_time # returns result in global variable r_Tc
+			calculate_reciprocity "display_choice_menu" "prompt_for_choice" $exposure_time_s # returns result in global variable r_Tc
+
+			# get shutter dial message
+			shutter_dial_value_message $r_Tc # returns string in global variable r_sdv_msg
+
 			echo ""
-			echo "Corrected exposure time Tc = $r_Tc s"
+			echo "Corrected exposure time Tc = $r_Tc s. $r_sdv_msg"
 		fi
 	fi
 
