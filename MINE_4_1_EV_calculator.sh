@@ -55,7 +55,7 @@
 #		- Added printout of closest shutter dial value for the calculated exposure times for menu items 1 and 2 (both measured and reciprocity-corrected time).
 #		- Added printout of used reciprocity formulas, when calculate_reciprocity is called. Added note explaining that appropriate film stock or formula is NOT AUTO-SELECTED for reciprocity calculations, if calculate_reciprocity is invoked from Menu Item 1 or Menu Item 2. Also fixed some small comparison mistakes.
 #		- Moved ISO and Aperture (F-Stop) values printout into function ISO_and_Aperture_table.
-
+#		- Added prefix "l_" to variables used locally in functions, to distinguish them from variables of the same name which are used in the main body of this script. Now, all local variables inside functions should begin with either "l_" or "r_".
 
 # GLOBAL VARIABLES RESERVED FOR FUNCTION RETURNS START
 # r_Tc - for returning calculated exposure time corrected for reciprocity
@@ -66,16 +66,16 @@
 # FUNCTION DEFINITIONS START
 function validate_EV(){	# validates EV value before it is used in EV_table. Invoked inside the start of EV_table.
 # expects #1, an integer (EV value)
-EV_value=$1
+l_EV_value=$1
 
-if [[ $EV_value == "title" || $EV_value == "source" || $EV_value == "table_header" ]]; then # if EV_value is one of the text rows from the table, then just pass the value through without modification.
-	r_validated_EV=$EV_value
-elif [[ $(bc <<< "$EV_value < -7" ) == 1 ]]; then # a ceiling-like filter
+if [[ $l_EV_value == "title" || $l_EV_value == "source" || $l_EV_value == "table_header" ]]; then # if l_EV_value is one of the text rows from the table, then just pass the value through without modification.
+	r_validated_EV=$l_EV_value
+elif [[ $(bc <<< "$l_EV_value < -7" ) == 1 ]]; then # a ceiling-like filter
 	r_validated_EV=-7
-elif [[ $(bc <<< "$EV_value > 20") == 1 ]]; then # a floor-like filter
+elif [[ $(bc <<< "$l_EV_value > 20") == 1 ]]; then # a floor-like filter
 	r_validated_EV=20
 else
-	r_validated_EV=$EV_value # if given EV is within the correct interval, just let it pass through
+	r_validated_EV=$l_EV_value # if given EV is within the correct interval, just let it pass through
 fi
 }
 
@@ -230,12 +230,12 @@ function ISO_and_Aperture_table(){
 }
 
 function calculate_reciprocity() {
-# Expects $1 as variable display_choice_menu, expected values are "display_choice_menu" or "don't_display_choice_menu"
-# Expects $2 as variable calculation_choice, expected values are  "prompt_for_choice" or the code of a calculation choice ("A1" xor "A2" xor "A3" xor "B" xor "C")
-# Expects $3 as variable Tm, expected values are "prompt_for_Tm" or a provided exposure time Tm (s)
-display_choice_menu=$1
-calculation_choice=$2
-Tm=$3
+# Expects $1 as variable l_display_choice_menu, expected values are "display_choice_menu" or "don't_display_choice_menu"
+# Expects $2 as variable l_calculation_choice, expected values are  "prompt_for_choice" or the code of a calculation choice ("A1" xor "A2" xor "A3" xor "B" xor "C")
+# Expects $3 as variable l_Tm, expected values are "prompt_for_Tm" or a provided exposure time Tm (s)
+l_display_choice_menu=$1
+l_calculation_choice=$2
+l_Tm=$3
 
 # Does not automatically select an appropriate film stock or formula if it is invoked from Menu Item 1 or Menu Item 2. User has to pay attention to choosing the right calculation here!
 
@@ -253,7 +253,7 @@ Tm=$3
 # Fallback reciprocity failure correction formula that is used (unless a film roll's datasheet says something else): Tc = Tm ^ P
 # Source: https://www.ilfordphoto.com/wp/wp-content/uploads/2017/06/Reciprocity-Failure-Compensation.pdf
 
-if [[ $display_choice_menu == "display_choice_menu" ]]; then
+if [[ $l_display_choice_menu == "display_choice_menu" ]]; then
 	echo "===== Reciprocity Failure Compensation ====="
 
 	echo "A: A pre-selected film roll"
@@ -269,22 +269,22 @@ if [[ $display_choice_menu == "display_choice_menu" ]]; then
 	echo ""
 fi
 
-if [[ $calculation_choice == "prompt_for_choice" ]]; then
+if [[ $l_calculation_choice == "prompt_for_choice" ]]; then
 	echo ""
 	echo "Enter choice:"
-	read calculation_choice
-# else use provided argument $2, already stored in variable calculation_choice, as the choice code
+	read l_calculation_choice
+# else use provided argument $2, already stored in variable l_calculation_choice, as the choice code
 fi
 
 # for menu choice 1 and 2 of this script, use provided argument as Tm
-if [[ $Tm == "prompt_for_Tm" ]]; then
+if [[ $l_Tm == "prompt_for_Tm" ]]; then
 	echo "Enter measured exposure time Tm (s):"
-	read Tm
+	read l_Tm
 fi
 
 echo ""
 
-case $calculation_choice in
+case $l_calculation_choice in
 
 # A1 - Fomapan 400 (reciprocity starts after 1/2 s)
 #	(My best guess according to the table in the data sheet of this film roll. I could be wrong.)
@@ -301,20 +301,20 @@ case $calculation_choice in
 	echo "Tm >= 100s	==> Tc = 8 * Tm"
 	echo ""
 
-	if [[ $(bc <<< "scale=4; $Tm >= 100") == 1 ]];then
-		Tc=$(bc <<< "scale=4; 8 * $Tm")
-	elif [[ $(bc <<< "scale=4; $Tm >= 10") == 1 ]]; then
-		Tc=$(bc <<< "scale=4; 6 * $Tm")
-	elif [[ $(bc <<< "scale=4; $Tm >= 1/2") == 1 ]]; then
-		Tc=$(bc <<< "scale=4; 1.5 * $Tm")
+	if [[ $(bc <<< "scale=4; $l_Tm >= 100") == 1 ]];then
+		l_Tc=$(bc <<< "scale=4; 8 * $l_Tm")
+	elif [[ $(bc <<< "scale=4; $l_Tm >= 10") == 1 ]]; then
+		l_Tc=$(bc <<< "scale=4; 6 * $l_Tm")
+	elif [[ $(bc <<< "scale=4; $l_Tm >= 1/2") == 1 ]]; then
+		l_Tc=$(bc <<< "scale=4; 1.5 * $l_Tm")
 	else
 		echo ""
 		echo "NOTE: Reciprocity compensation not needed. (Tm < 1/2 s)"
-		Tc=$Tm
+		l_Tc=$l_Tm
 	fi
 
 	# "Return" the result via a global variable
-	r_Tc=$Tc
+	r_Tc=$l_Tc
 	;;
 
 # A2 - Ilford HP5+ (reciprocity starts after 1/2 s)
@@ -325,20 +325,20 @@ case $calculation_choice in
 	echo "Tm >= 1s	==> Tc = Tm ^ 1.31"
 	echo ""
 
-	if [[ $(bc <<< "scale=4; $Tm >= 1/2") == 1 ]]; then
-		if [[ $(bc <<< "scale=4; $Tm < 1") == 1 ]]; then
-			Tc=$(bc -l <<< "scale=4; e((1/1.31)*l($Tm))") # Tc = $Tm ^ (1/1.31) # A quick fix (I guessed) in case 1/2s < Tm < 1s.
+	if [[ $(bc <<< "scale=4; $l_Tm >= 1/2") == 1 ]]; then
+		if [[ $(bc <<< "scale=4; $l_Tm < 1") == 1 ]]; then
+			l_Tc=$(bc -l <<< "scale=4; e((1/1.31)*l($l_Tm))") # Tc = $Tm ^ (1/1.31) # A quick fix (I guessed) in case 1/2s < Tm < 1s.
 		else	# if Tm >= 1s
-			Tc=$(bc -l <<< "scale=4; e(1.31*l($Tm))") # Tc = $Tm ^ 1.31
+			l_Tc=$(bc -l <<< "scale=4; e(1.31*l($l_Tm))") # Tc = $Tm ^ 1.31
 		fi
 	else
 		echo ""
 		echo "NOTE: Reciprocity compensation not needed. (Tm < 1/2 s)"
-		Tc=$Tm
+		l_Tc=$l_Tm
 	fi
 
 	# "Return" the result via a global variable
-	r_Tc=$Tc
+	r_Tc=$l_Tc
 	;;
 
 # A3 - T-Max 400 (reciprocity starts around 10s)
@@ -353,20 +353,20 @@ case $calculation_choice in
 	echo "Tm > 100s	==> Tc = 3 * Tm"
 	echo ""
 
-	if [[ $(bc <<< "scale=4; $Tm >= 100") == 1 ]]; then # Tm >= 100 s
-		Tc=$(bc <<< "scale=4; 3 * $Tm")
-	elif [[ $(bc <<< "scale=4; $Tm >= 10") == 1 ]]; then # Tm >= 10 s
+	if [[ $(bc <<< "scale=4; $l_Tm >= 100") == 1 ]]; then # Tm >= 100 s
+		l_Tc=$(bc <<< "scale=4; 3 * $l_Tm")
+	elif [[ $(bc <<< "scale=4; $l_Tm >= 10") == 1 ]]; then # Tm >= 10 s
 		echo "Recommended - Change aperture instead. (Applies to 10 s < Tm < 100 s.)"
 		echo "Calculating rough exposure guess using fallback formula Tc = Tm ^ 1.3 ..."
-		calculate_reciprocity "don't_display_choice_menu" "C" $Tm # returns result in global variable r_Tc
-		Tc=$r_Tc
+		calculate_reciprocity "don't_display_choice_menu" "C" $l_Tm # returns result in global variable r_Tc
+		l_Tc=$r_Tc
 	else # if Tm < 10 s
 		echo ""
 		echo "NOTE: Reciprocity compensation not needed. (Tm < 10 s)"
-		Tc=$Tm
+		l_Tc=$l_Tm
 	fi
 	# "Return" the result via a global variable
-	r_Tc=$Tc
+	r_Tc=$l_Tc
 	;;
 
 # B  Manual Tc = Tm ^ P formula (Good for Ilford film)
@@ -381,12 +381,12 @@ case $calculation_choice in
 	echo ""
 
 	echo "Enter reciprocity factor P:"
-	read P
+	read l_P
 
-	Tc=$(bc -l <<< "scale=4; e($P*l($Tm))") # $Tm ^ P
+	l_Tc=$(bc -l <<< "scale=4; e($l_P*l($l_Tm))") # $Tm ^ P
 
 	# "Return" the result via a global variable
-	r_Tc=$Tc
+	r_Tc=$l_Tc
 	;;
 
 # C  Fallback rule-of-thumb formula
@@ -396,10 +396,10 @@ case $calculation_choice in
 "C")
 	echo "Tc = Tm ^ 1.3, fallback formula for unknown reciprocity behavior and Tm > 1s."
 
-	Tc=$(bc -l <<< "scale=4; e(1.3*l($Tm))") # $Tm ^ 1.3
+	l_Tc=$(bc -l <<< "scale=4; e(1.3*l($l_Tm))") # $Tm ^ 1.3
 
 	# "Return" the result via a global variable
-	r_Tc=$Tc
+	r_Tc=$l_Tc
 	;;
 esac
 }
@@ -409,16 +409,16 @@ function shutter_dial_value_message() {
 # Returns a message with the appropriate shutter dial to choose on the camera. E.g. "Turn shutter dial to value closest to 125."
 # Returns value in global var r_sdv_msg
 # Note: Does not handle negative value arguments in any foreseen way.
-exposure_time_s=$1
+l_exposure_time_s=$1
 
-if [[ $( bc <<< "scale=4; $exposure_time_s < 1") == 1 ]]; then # if exposure time is < 1s
-	dial_value_ms=$(bc <<< "scale=0; 1/$exposure_time_s")
-	r_sdv_msg="Turn your shutter dial to the value closest to $dial_value_ms."
+if [[ $( bc <<< "scale=4; $l_exposure_time_s < 1") == 1 ]]; then # if exposure time is < 1s
+	l_dial_value_ms=$(bc <<< "scale=0; 1/$l_exposure_time_s")
+	r_sdv_msg="Turn your shutter dial to the value closest to $l_dial_value_ms."
 else # if exposure time is >= 1s
-	if [[ $(bc <<< "scale=4; $exposure_time_s <= 4.1") == 1 ]]; then # if exposure time is > 1s but <= 4.1s.
-		# round $exposure_time_s to integer
-		exposure_time_s_rounded=$(/usr/bin/printf "%.0f" $exposure_time_s)
-		r_sdv_msg="Turn your shutter dial to the value closest to $exposure_time_s_rounded s or BULB MODE."
+	if [[ $(bc <<< "scale=4; $l_exposure_time_s <= 4.1") == 1 ]]; then # if exposure time is > 1s but <= 4.1s.
+		# round $l_exposure_time_s to integer
+		l_exposure_time_s_rounded=$(/usr/bin/printf "%.0f" $l_exposure_time_s)
+		r_sdv_msg="Turn your shutter dial to the value closest to $l_exposure_time_s_rounded s or BULB MODE."
 	else # if exposure time is > 4.1 s
 		r_sdv_msg="Turn your shutter dial to BULB MODE."
 	fi
