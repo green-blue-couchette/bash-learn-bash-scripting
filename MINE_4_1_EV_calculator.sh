@@ -53,6 +53,7 @@
 # (2024-02-25): - Added function to validate EV value, validate_EV, passed to function EV_table, for cases where an EV < -7 or EV > 20 is passed to EV_table.
 #		- Made printout for "Suitable for this lighting condition" look nicer.
 #		- Added printout of closest shutter dial value for the calculated exposure times for menu items 1 and 2 (both measured and reciprocity-corrected time).
+#		- Added printout of used reciprocity formulas, when calculate_reciprocity is called. Added note explaining that appropriate film stock or formula is NOT AUTO-SELECTED for reciprocity calculations, if calculate_reciprocity is invoked from Menu Item 1 or Menu Item 2. Also fixed some small comparison mistakes.
 
 
 # GLOBAL VARIABLES RESERVED FOR FUNCTION RETURNS START
@@ -191,6 +192,8 @@ display_choice_menu=$1
 calculation_choice=$2
 Tm=$3
 
+# Does not automatically select an appropriate film stock or formula if it is invoked from Menu Item 1 or Menu Item 2. User has to pay attention to choosing the right calculation here!
+
 # Self-note about calculating A^B where B is non-integer:
 # "...since if x = a^b, then ln(x) = ln(a^b) = b(ln(a)), we can see that x = exp(b(ln(a))),
 # so if you want to raise things to fractional b's you can use that.
@@ -205,23 +208,23 @@ Tm=$3
 # Fallback reciprocity failure correction formula that is used (unless a film roll's datasheet says something else): Tc = Tm ^ P
 # Source: https://www.ilfordphoto.com/wp/wp-content/uploads/2017/06/Reciprocity-Failure-Compensation.pdf
 
-if [[ $display_choice_menu=="display_choice_menu" ]]; then
+if [[ $display_choice_menu == "display_choice_menu" ]]; then
 	echo "===== Reciprocity Failure Compensation ====="
 
 	echo "A: A pre-selected film roll"
 	echo "   (A1) - Fomapan 400 (reciprocity after 1/2 s)"
-	echo "   (A2) - Ilford HP5+ (reciprocity after 1/2 s)"
+	echo "   (A2) - Ilford HP5+ (ISO 400) (reciprocity after 1/2 s), formula recommended for Tm < 1s only."
 	echo "   (A3) - T-max 400 (reciprocity after 10 s)"
 	echo ""
 
-	echo "(B): Tc = Tm ^ P formula, plug in values yourself. (Good for Ilford films)"
+	echo "(B): Tc = Tm ^ P formula, plug in values yourself. (Good for Ilford films). Recommended for Tm > 1s only."
 	echo ""
 
-	printf "(C): Tc = Tm ^ 1.3 - A fallback, rule-of-thumb calculation. Recommended for Tm > 1 s.\n     (Aka. \"I have no clue about my film's reciprocity behavior.\")\n     Try this for...\n     - Gold 200\n     - UltraMax 400\n     - Portra 800\n     - etc."
+	printf "(C): Tc = Tm ^ 1.3 - A fallback, rule-of-thumb calculation. Recommended for Tm > 1s only.\n     (Aka. \"I have no clue about my film's reciprocity behavior.\")\n     Try this for...\n     - Gold 200\n     - UltraMax 400\n     - Portra 800\n     - etc."
 	echo ""
 fi
 
-if [[ $calculation_choice=="prompt_for_choice" ]]; then
+if [[ $calculation_choice == "prompt_for_choice" ]]; then
 	echo ""
 	echo "Enter choice:"
 	read calculation_choice
@@ -234,6 +237,7 @@ if [[ $Tm == "prompt_for_Tm" ]]; then
 	read Tm
 fi
 
+echo ""
 
 case $calculation_choice in
 
@@ -246,6 +250,12 @@ case $calculation_choice in
 #	> 100 s
 #	Tc = 8 * Tm
 "A1")
+	echo "Fomapan 400 - Formula is..."
+	echo "Tm >= 1/2s	==> Tc = 1.5 * Tm"
+	echo "Tm >= 10s	==> Tc = 6 * Tm"
+	echo "Tm >= 100s	==> Tc = 8 * Tm"
+	echo ""
+
 	if [[ $(bc <<< "scale=4; $Tm >= 100") == 1 ]];then
 		Tc=$(bc <<< "scale=4; 8 * $Tm")
 	elif [[ $(bc <<< "scale=4; $Tm >= 10") == 1 ]]; then
@@ -265,8 +275,17 @@ case $calculation_choice in
 # A2 - Ilford HP5+ (reciprocity starts after 1/2 s)
 	# Tc = Tm ^ 1.31 - Fetched from data sheet
 "A2")
+	echo "Ilford HP5+ (ISO 400) - Formula is..."
+	echo "Tm < 1s		==> Tc = Tm ^ (1/1.31)"
+	echo "Tm >= 1s	==> Tc = Tm ^ 1.31"
+	echo ""
+
 	if [[ $(bc <<< "scale=4; $Tm >= 1/2") == 1 ]]; then
-		Tc=$(bc -l <<< "scale=4; e(1.31*l($Tm))") # Tc = $Tm ^ 1.31
+		if [[ $(bc <<< "scale=4; $Tm < 1") == 1 ]]; then
+			Tc=$(bc -l <<< "scale=4; e((1/1.31)*l($Tm))") # Tc = $Tm ^ (1/1.31) # A quick fix (I guessed) in case 1/2s < Tm < 1s.
+		else	# if Tm >= 1s
+			Tc=$(bc -l <<< "scale=4; e(1.31*l($Tm))") # Tc = $Tm ^ 1.31
+		fi
 	else
 		echo ""
 		echo "NOTE: Reciprocity compensation not needed. (Tm < 1/2 s)"
@@ -284,6 +303,11 @@ case $calculation_choice in
 #        > 100 s
 #        Tc = 3 * Tm
 "A3")
+	echo "T-Max 400. Formula is..."
+	echo "Tm > 10s	==> Tc = Tm ^ 1.3"
+	echo "Tm > 100s	==> Tc = 3 * Tm"
+	echo ""
+
 	if [[ $(bc <<< "scale=4; $Tm >= 100") == 1 ]]; then # Tm >= 100 s
 		Tc=$(bc <<< "scale=4; 3 * $Tm")
 	elif [[ $(bc <<< "scale=4; $Tm >= 10") == 1 ]]; then # Tm >= 10 s
@@ -308,6 +332,9 @@ case $calculation_choice in
 	# No need to read Tm, because it is already provided as an argument to this function
 	# Only need to enter P
 
+	echo "Tc = Tm ^ P formula."
+	echo ""
+
 	echo "Enter reciprocity factor P:"
 	read P
 
@@ -322,6 +349,8 @@ case $calculation_choice in
 #    Enter Tm
 #    return answer
 "C")
+	echo "Tc = Tm ^ 1.3, fallback formula for unknown reciprocity behavior and Tm > 1s."
+
 	Tc=$(bc -l <<< "scale=4; e(1.3*l($Tm))") # $Tm ^ 1.3
 
 	# "Return" the result via a global variable
@@ -418,7 +447,11 @@ if [[ $menu_choice == 1 ]]; then
 		echo "Exposure time is above 1/2 s. Calculate reciprocity failure compensation? (y/N):"
 
 		read calculate_reciprocity_y_n
+		echo ""
 		if [[ $calculate_reciprocity_y_n == "y" ]]; then
+			echo "NOTE: Appropriate film stock or formula is NOT AUTO-SELECTED based on your previously input ISO value."
+			echo ""
+
 			calculate_reciprocity "display_choice_menu" "prompt_for_choice" $exposure_time_s # returns result in global variable r_Tc
 
 			# get shutter dial message
@@ -459,6 +492,7 @@ elif [[ $menu_choice == 2 ]]; then
 	echo "Exposure time = $exposure_time_s seconds. $r_sdv_msg"
 
 	# IF EXPOSURE TIME IS > 1/2 S, OFFER TO CALCULATE RECIPROCITY FAILURE COMPENSATION Tc
+	echo ""
 	if [[ $(bc <<< "scale=4; $exposure_time_s > 1/2") == 1 ]]; then
 		echo "Exposure time is above 1/2 s. Calculate reciprocity failure compensation? (y/N):"
 
@@ -466,6 +500,9 @@ elif [[ $menu_choice == 2 ]]; then
 		echo ""
 
 		if [[ $calculate_reciprocity_y_n == "y" ]]; then
+			echo "NOTE: Appropriate film stock is NOT AUTO-SELECTED based on your previously input ISO value."
+			echo ""
+
 			calculate_reciprocity "display_choice_menu" "prompt_for_choice" $exposure_time_s # returns result in global variable r_Tc
 
 			# get shutter dial message
