@@ -78,7 +78,8 @@ beast_value=$1
 root_required=$2
 player_strength=$3
 
-# "coffee" is a secret code for winning an attack
+# "coffee" is a secret code for winning the current attack. Doesn't work if root requirement is enabled AND user isn't root.
+# "bernard" is a secret user to win the entire battle at once.
 attacks=0
 while true
 do
@@ -175,8 +176,6 @@ beast_1_value=$(( $RANDOM % 2 ))
 divine_help $beast_1_value
 
 # execute battle 1
-# "coffee" is a cheat code to win the current attack
-# "bernard" is a secret user to win the entire battle at once
 battle $beast_1_value "root_not_required" $strength
 
 sleep 1
@@ -193,7 +192,5 @@ beast_2_value=$(( $RANDOM % 10 ))
 divine_help $beast_2_value
 
 # Execute battle 2
-# "coffee" is a cheat code to win the current attack
-# "bernard" is a secret user to win the entire battle at once
-# user automatically loses if player isn't logged in as "root" or "bernard"
+# user automatically loses if player isn't logged in as "root"
 battle $beast_2_value "root_required" $strength
