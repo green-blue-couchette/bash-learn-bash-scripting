@@ -4,7 +4,7 @@
 # ABOUT:	Calculate the exposure value (EV) suitable for your chosen camera settings, or the exposure time for your current lighting conditions. (Film roll's reciprocity compensation for long exposures can also be calculated.)
 # DISCLAIMER:	I do not guarantee that this script and its calculations are accurate enough to get you the expected results using your specific film stock. Use this script 'AS IS'.
 # USE:		$./MINE_4_1_EV_calculator.sh
-# TIME TAKEN TO DESIGN, IMPLEMENT AND TEST THIS SCRIPT AS OF 2024-02-25: 12h 45 min.
+# TIME WORKED ON THIS SCRIPT (DESIGN, IMPLEMENTATION AND TESTING) AS OF 2024-02-25: 13h 45 min.
 
 # OUTLINE:
 # Ask user what they want to do...
