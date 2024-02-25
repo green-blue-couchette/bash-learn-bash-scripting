@@ -54,6 +54,7 @@
 #		- Made printout for "Suitable for this lighting condition" look nicer.
 #		- Added printout of closest shutter dial value for the calculated exposure times for menu items 1 and 2 (both measured and reciprocity-corrected time).
 #		- Added printout of used reciprocity formulas, when calculate_reciprocity is called. Added note explaining that appropriate film stock or formula is NOT AUTO-SELECTED for reciprocity calculations, if calculate_reciprocity is invoked from Menu Item 1 or Menu Item 2. Also fixed some small comparison mistakes.
+#		- Moved ISO and Aperture (F-Stop) values printout into function ISO_and_Aperture_table.
 
 
 # GLOBAL VARIABLES RESERVED FOR FUNCTION RETURNS START
@@ -182,6 +183,50 @@ case $r_validated_EV in
 	echo "20+	Extremely bright artificial lighting, telescopic view of the sun."
 	;;
 esac
+}
+
+function ISO_and_Aperture_table(){
+# Just prints out common ISO and Aperture (F-Stop) values
+
+	echo "===== Common ISO (film speed) and Aperture (F-stop) values ====="
+	echo ""
+
+	echo "--- ISO ---"
+	printf "Slow speeds: \nISO 50 \nISO 100-125 \nISO 200"
+	echo ""
+	echo ""
+
+	printf "Medium speed: \nISO 400"
+	echo ""
+	echo ""
+
+	printf "Fast speeds: \nISO 800 \nISO 1600\nISO 3200"
+	echo ""
+	echo ""
+
+	echo "Sources - \"Film ISO - A beginners guide by ILFORD Photo\""
+	echo "          https://www.youtube.com/watch?v=AQ9rwLC8yqs"
+	echo "        - \"When to Use Different ISO Film Speeds\", Guide to Film Photography"
+	echo "          https://www.guidetofilmphotography.com/film-speed-uses.html"
+	echo ""
+
+	echo "--- Common Aperture (F-stop) values ---"
+	echo "f/1"
+	echo "f/1.4"
+	echo "f/2"
+	echo "f/2.8"
+	echo "f/4"
+	echo "f/5.6"
+	echo "f/8"
+	echo "f/11"
+	echo "f/16"
+	echo "f/22"
+	echo "f/32"
+
+	echo ""
+	echo "Source - \"F Stop Chart: Lens Apertures for Full Stops, 1/2 Stops & 1/3 Stops\", Have Camera, Will Travel"
+	echo "         https://havecamerawilltravel.com/f-stop-chart-lens-apertures/"
+	echo ""
 }
 
 function calculate_reciprocity() {
@@ -522,45 +567,7 @@ elif [[ $menu_choice == 3 ]]; then
 elif [[ $menu_choice == 4 ]]; then
 	# Display common ISO and Aperture (F-Stop) values and quit
 
-	echo "===== Common ISO (film speed) and Aperture (F-stop) values ====="
-	echo ""
-
-	echo "--- ISO ---"
-	printf "Slow speeds: \nISO 50 \nISO 100-125 \nISO 200"
-	echo ""
-	echo ""
-
-	printf "Medium speed: \nISO 400"
-	echo ""
-	echo ""
-
-	printf "Fast speeds: \nISO 800 \nISO 1600\nISO 3200"
-	echo ""
-	echo ""
-
-	echo "Sources - \"Film ISO - A beginners guide by ILFORD Photo\""
-	echo "          https://www.youtube.com/watch?v=AQ9rwLC8yqs"
-	echo "        - \"When to Use Different ISO Film Speeds\", Guide to Film Photography"
-	echo "          https://www.guidetofilmphotography.com/film-speed-uses.html"
-	echo ""
-
-	echo "--- Common Aperture (F-stop) values ---"
-	echo "f/1"
-	echo "f/1.4"
-	echo "f/2"
-	echo "f/2.8"
-	echo "f/4"
-	echo "f/5.6"
-	echo "f/8"
-	echo "f/11"
-	echo "f/16"
-	echo "f/22"
-	echo "f/32"
-
-	echo ""
-	echo "Source - \"F Stop Chart: Lens Apertures for Full Stops, 1/2 Stops & 1/3 Stops\", Have Camera, Will Travel"
-	echo "         https://havecamerawilltravel.com/f-stop-chart-lens-apertures/"
-	echo ""
+	ISO_and_Aperture_table
 
 elif [[ $menu_choice == 5 ]]; then
 	# Display EV table and quit
